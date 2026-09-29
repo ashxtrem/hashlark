@@ -41,6 +41,20 @@ pub struct RepoView {
     pub builtin: bool,
 }
 
+/// What a repository looks like before it is added: lets a front end show
+/// the signing key for the user to trust (trust on first use).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct RepoPreview {
+    pub url: String,
+    pub name: String,
+    /// Short form of the signing key that would be pinned.
+    pub fingerprint: String,
+    pub definitions: usize,
+    /// Already added.
+    pub exists: bool,
+}
+
 /// What a sync changed.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -108,6 +122,25 @@ impl Engine {
             Error::Invalid("the repository has no signature (index.json.sig)".into())
         })?;
         Ok((index.into_bytes(), signature))
+    }
+
+    /// Fetches a repository's signed index without adding it.
+    pub async fn preview_repo(&self, url: &str) -> Result<RepoPreview> {
+        let url = repos::normalize_repo_url(url)?;
+        let exists: Option<String> =
+            sqlx::query_scalar("SELECT id FROM definition_repos WHERE url = ?")
+                .bind(url.as_str())
+                .fetch_optional(self.store().pool())
+                .await?;
+        let (bytes, signature) = self.fetch_index(&url).await?;
+        let index = repos::verify_index(&bytes, &signature, None)?;
+        Ok(RepoPreview {
+            url: url.to_string(),
+            name: index.name,
+            fingerprint: repos::fingerprint(&index.public_key),
+            definitions: index.definitions.len(),
+            exists: exists.is_some(),
+        })
     }
 
     /// Adds a repository and installs its definitions (disabled).
@@ -390,6 +423,43 @@ mod tests {
         crate::repos::tests::DEF
             .replace("id: repo-site", &format!("id: {id}"))
             .replace("version: 3", &format!("version: {version}"))
+    }
+
+    #[tokio::test]
+    async fn preview_shows_the_key_without_adding() {
+        let server = MockServer::start().await;
+        let (signing, public) = generate_keypair();
+        serve(
+            &server,
+            &signing,
+            &public,
+            1,
+            &[("a.yml", def("site-a", 1))],
+        )
+        .await;
+        let engine = engine().await;
+        let url = format!("{}/defs", server.uri());
+
+        let preview = engine.preview_repo(&url).await.unwrap();
+        assert_eq!(preview.name, "Test repo");
+        assert_eq!(preview.definitions, 1);
+        assert_eq!(preview.fingerprint, crate::repos::fingerprint(&public));
+        assert!(!preview.exists);
+        assert!(
+            engine
+                .repos()
+                .await
+                .unwrap()
+                .iter()
+                .all(|r| r.builtin || r.url != url)
+        );
+
+        let (repo, _) = engine.add_repo(&url).await.unwrap();
+        assert_eq!(
+            repo.fingerprint.as_deref(),
+            Some(preview.fingerprint.as_str())
+        );
+        assert!(engine.preview_repo(&url).await.unwrap().exists);
     }
 
     #[tokio::test]

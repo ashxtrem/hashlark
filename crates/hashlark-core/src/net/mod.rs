@@ -62,12 +62,25 @@ impl Default for ClientOptions {
     }
 }
 
+/// Every client goes through this so platform-specific TLS setup happens
+/// in one place.
+pub(crate) fn client_builder() -> reqwest::ClientBuilder {
+    let builder = reqwest::Client::builder();
+    #[cfg(target_os = "android")]
+    let builder = builder.tls_certs_only(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .filter_map(|der| reqwest::Certificate::from_der(der).ok()),
+    );
+    builder
+}
+
 pub fn build_client(options: &ClientOptions) -> Result<reqwest::Client> {
     let through_tor = options
         .proxy
         .as_ref()
         .is_some_and(|p| p.scheme().starts_with("socks"));
-    let mut builder = reqwest::Client::builder()
+    let mut builder = client_builder()
         .user_agent(options.user_agent.as_deref().unwrap_or(USER_AGENT))
         .connect_timeout(if through_tor {
             TOR_CONNECT_TIMEOUT

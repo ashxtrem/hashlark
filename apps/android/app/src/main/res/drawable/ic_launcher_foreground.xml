@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The hash sign and lark of app-icon.svg, scaled into the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.62"
+        android:scaleY="0.62">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M430,250 h88 l-66,524 h-88 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M630,250 h88 l-66,524 h-88 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M328,392 h386 a42,42 0 0 1 0,84 h-386 a42,42 0 0 1 0,-84 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M304,566 h386 a42,42 0 0 1 0,84 h-386 a42,42 0 0 1 0,-84 z" />
+        <path
+            android:fillColor="#FFD166"
+            android:pathData="M742,236 c40,-40 96,-54 146,-38 c-34,8 -60,26 -78,52 c34,-6 62,2 84,20 c-52,0 -98,18 -134,52 z" />
+    </group>
+</vector>

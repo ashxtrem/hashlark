@@ -1,0 +1,4 @@
+[bindings.kotlin]
+package_name = "io.github.ashxtrem.hashlark.ffi"
+cdylib_name = "hashlark_ffi"
+android = true

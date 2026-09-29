@@ -17,5 +17,7 @@ Each ADR records one decision: the context, what we chose and what follows from 
 | [0011](0011-licence-gpl-3.md) | Licence: GPL-3.0-or-later | Accepted |
 | [0012](0012-own-doh-resolver.md) | Our own DNS-over-HTTPS resolver | Accepted |
 | [0013](0013-embedded-tor-arti.md) | Built-in Tor with Arti behind a local SOCKS bridge | Accepted |
+| [0014](0014-android-tls-roots.md) | Bundled root certificates for TLS on Android | Accepted |
+| [0015](0015-ffi-json-boundary.md) | The FFI boundary carries the HTTP API's JSON | Accepted |
 
 New ADRs: copy [template.md](template.md) and use the next number.

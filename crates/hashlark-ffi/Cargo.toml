@@ -1,0 +1,37 @@
+[package]
+name = "hashlark-ffi"
+description = "UniFFI bindings of the Hashlark core, used by the Android app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lib]
+name = "hashlark_ffi"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+hashlark-core = { version = "0.1.1", path = "../hashlark-core", default-features = false, features = ["tor"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "sync"] }
+tracing = "0.1.44"
+uniffi = { version = "0.32" }
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+wiremock = "0.6.5"
+
+# The generated bindings are `unsafe` by nature, so this crate opts out of the
+# workspace-wide `forbid`. Nothing in here writes `unsafe` by hand.
+[lints.rust]
+unsafe_code = "allow"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

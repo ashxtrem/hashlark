@@ -38,7 +38,7 @@ pub use providers::{
     DefinitionCheck, ProviderPatch, ProviderSource, ProviderView, Session, SessionCookie,
     SettingView, TestReport,
 };
-pub use repos::{RepoView, SyncReport};
+pub use repos::{RepoPreview, RepoView, SyncReport};
 
 /// Merged results kept for `resolve` and result lookups.
 const RESULT_CACHE_CAPACITY: usize = 20_000;
@@ -402,11 +402,10 @@ impl Engine {
             .unwrap_or_else(|| self.inner.paths.data_dir().to_path_buf())
     }
 
-    /// Downloads a `.torrent` file and saves it under [`download_dir`],
-    /// named after `title`. Returns the saved path.
-    ///
-    /// [`download_dir`]: Self::download_dir
-    pub async fn save_torrent(&self, url: &Url, title: &str) -> Result<PathBuf> {
+    /// Downloads a `.torrent` file and returns its bytes. Front ends that
+    /// can't write to a plain folder (Android's MediaStore) store the bytes
+    /// themselves.
+    pub async fn fetch_torrent(&self, url: &Url) -> Result<Vec<u8>> {
         if !matches!(url.scheme(), "http" | "https") {
             return Err(Error::Invalid(
                 "only http(s) .torrent URLs can be downloaded".into(),
@@ -443,7 +442,15 @@ impl Engine {
                 "the server did not return a .torrent file".into(),
             ));
         }
+        Ok(bytes)
+    }
 
+    /// Downloads a `.torrent` file and saves it under [`download_dir`],
+    /// named after `title`. Returns the saved path.
+    ///
+    /// [`download_dir`]: Self::download_dir
+    pub async fn save_torrent(&self, url: &Url, title: &str) -> Result<PathBuf> {
+        let bytes = self.fetch_torrent(url).await?;
         let dir = self.download_dir();
         tokio::fs::create_dir_all(&dir).await?;
         let path = unique_path(&dir, &sanitize_file_name(title), "torrent");
@@ -567,7 +574,7 @@ fn network_for(settings: &Settings, embedded_tor: Option<Url>) -> crate::net::Ne
 const MAX_TORRENT_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Makes `title` safe as a file name on every OS.
-fn sanitize_file_name(title: &str) -> String {
+pub fn sanitize_file_name(title: &str) -> String {
     let cleaned: String = title
         .chars()
         .map(|c| {

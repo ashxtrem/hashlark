@@ -1,0 +1,16 @@
+[package]
+name = "uniffi-bindgen"
+description = "Generates the Kotlin bindings of hashlark-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+
+[lints]
+workspace = true

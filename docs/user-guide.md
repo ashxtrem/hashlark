@@ -77,6 +77,23 @@ A provider's status explains what went wrong:
 | Downloads | Folder for `.torrent` files. |
 | Appearance & updates | Light, dark or system theme; automatic update checks. |
 
+## Android
+
+Download the APK for your phone from the [releases page](https://github.com/ashxtrem/hashlark/releases): `arm64-v8a` fits nearly every phone (including the Galaxy Z Fold7); the `universal` APK works everywhere and is larger. Open it and allow your browser or file manager to install apps. Check the APK against `SHA256SUMS` and the signing-certificate fingerprint in the release notes if you like. Hashlark needs Android 8.0 or newer and a torrent client that opens magnet links.
+
+Everything above works the same on Android. What is different:
+
+- **Layouts follow the window.** On a phone or a foldable's cover screen you get one screen at a time (bottom bar; tap a result to see its details, Back returns to the list). On a tablet or an unfolded foldable the results and details sit side by side, and on very wide windows a filter panel joins them and the results become a sortable table. Half-open a foldable and Hashlark uses both halves: with the fold **horizontal** (tabletop), results are on top and the search box, chips and keyboard below; with the fold **vertical** (book), the list is on one side and the details on the other. Folding, unfolding or rotating in the middle of a search keeps the results.
+- **Provider status is one chip** next to the result count ("4 providers", or "3 of 4 providers" in red when some failed) so the results get the room. Tap it for each provider's count and speed, and for the way forward when a site needs a browser check.
+- **Search from anywhere:** share text or an IMDb link to Hashlark, or select text in any app and choose *Search in Hashlark*. Long-press the app icon for *New search*, *Favourites*, *History* and your last searches.
+- **Torrent client:** magnets open in the client Android picks; choose one in **Settings, Magnets and downloads**. `.torrent` files are saved to your Downloads folder and can be opened from the message that appears.
+- **Adding providers:** open a `.yml` definition from a file manager, or a `hashlark://repo?url=...` link. Hashlark always shows what it found and asks before adding. For a repository it shows the signing key first; only accept keys of people you trust.
+- **Browser checks** open in a window inside the app: pass the check, then tap **Done**.
+- **Tor:** built-in Tor works on Android and starts only when needed; on networks that block Tor, install Orbot (which supports bridges), start it, and choose *Orbot or my own Tor* in Settings.
+- **Background sync:** repositories and the tracker list refresh about once a day, only on Wi-Fi and when the battery is not low.
+- **Keyboard and mouse** (tablets, DeX, Chromebooks): `Ctrl+F` focuses the search box, arrow keys move through results, `Enter` opens, `Ctrl+C` copies the selected magnet, right-click opens the result menu. In split screen you can drag a result into a torrent client.
+- **Privacy:** nothing is backed up, and passwords and API keys are encrypted with a key stored in the Android Keystore.
+
 ## Privacy
 
 Hashlark sends no analytics or crash reports. It only connects to:
