@@ -51,13 +51,9 @@ jobs:
           # Signs update packages (see docs/releasing.md).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing and notarization (optional; unsigned builds otherwise).
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Do not pass empty Apple signing variables. Tauri treats them as
+          # "sign this build" and the macOS bundle fails before a DMG is produced.
+          # When the secrets in docs/releasing.md exist, add them here.
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
