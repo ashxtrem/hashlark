@@ -3204,7 +3204,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hashlark-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -3220,7 +3220,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "arti-client",
  "async-trait",
@@ -3261,7 +3261,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-desktop"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "hashlark-core",
@@ -3284,7 +3284,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-ffi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "hashlark-core",
  "serde",
@@ -3300,7 +3300,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-server"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -9445,7 +9445,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "uniffi",
 ]

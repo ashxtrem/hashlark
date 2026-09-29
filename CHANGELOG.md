@@ -4,6 +4,15 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-29
+
+### Changed
+
+- **Android search screen refactor.** Search controls sit above the results, which use the full width until one is opened. Details then open beside them only when two comfortable panes fit (about 840 dp and wider, after navigation, insets and text scale), and otherwise full-screen with the navigation hidden, so the Galaxy Z Fold7 inner display (about 750 × 832 dp) uses list → full-screen details.
+  - Rows show a two-line filename with labelled size, seeds (unknown is not zero) and sources, and one save action; the details have the primary "Open in client" action, copy, share, `.torrent`, source links and expandable technical information.
+  - A visible sort control, clearer provider status (partial failure, stopped search, no provider enabled), a filter sheet or dialog that applies only on Apply, a green warm-neutral theme (dark mode and dynamic colour kept), and a sidebar from 1200 dp.
+  - Not yet verified on a physical Fold7: hinge behaviour, the soft keyboard and TalkBack.
+
 ## [0.1.1] - 2026-09-29
 
 ### Added

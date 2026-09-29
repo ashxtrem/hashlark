@@ -3,92 +3,63 @@
 package io.github.ashxtrem.hashlark.ui.search
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.ashxtrem.hashlark.R
-import io.github.ashxtrem.hashlark.core.Format
 import io.github.ashxtrem.hashlark.core.MergedResult
+import io.github.ashxtrem.hashlark.core.ResultSorter
+import io.github.ashxtrem.hashlark.ui.AppEvent
 import io.github.ashxtrem.hashlark.ui.AppViewModel
+import io.github.ashxtrem.hashlark.ui.Destination
 import io.github.ashxtrem.hashlark.ui.LibraryViewModel
+import io.github.ashxtrem.hashlark.ui.PanePlan
 import io.github.ashxtrem.hashlark.ui.ResultActions
+import io.github.ashxtrem.hashlark.ui.WidthClass
 import io.github.ashxtrem.hashlark.ui.WindowShape
-import io.github.ashxtrem.hashlark.ui.common.CenteredMessage
-import io.github.ashxtrem.hashlark.ui.common.TwoPane
+import io.github.ashxtrem.hashlark.ui.common.FullScreenDetailEffect
 
 /**
- * The search screen, laid out for the shape of its window:
+ * The search screen. The search controls always sit above the results workspace; what the
+ * workspace shows depends on the room [WindowShape.planPanes] finds, not on the nominal window width:
  *
- * - narrow: the search field, chips and results; a result opens full-screen;
- * - medium: results next to the details of the selected one;
- * - expanded: filters, results table and details;
- * - book posture: results left of the hinge, details right of it;
- * - tabletop posture: results (or details) above the hinge, the search field,
- *   chips and keyboard below it.
+ * - results only, as wide as the window allows, until a result is opened (no empty details pane);
+ * - a result opened and only one pane fits: full-screen details that replace the controls and the
+ *   main navigation; Back returns to the same place in the list;
+ * - a result opened and both panes fit: results beside the details, the selected row marked, and a
+ *   close button on the details that gives the width back to the results;
+ * - tabletop posture: results (or details) above the hinge, the controls and keyboard below it.
+ *
+ * The Fold7's inner display (about 750 x 832 dp, or 832 x 750 rotated) lands in the second case.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     shape: WindowShape,
@@ -106,48 +77,94 @@ fun SearchScreen(
     val enabledCount by app.enabledProviderCount.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var showFilters by rememberSaveable { mutableStateOf(false) }
+    var filtersWereOpen by remember { mutableStateOf(false) }
+    val filterFocus = remember { FocusRequester() }
+    var restoreFocusId by remember { mutableStateOf<String?>(null) }
+
+    // Sorted only when the results or the order change, not on every keystroke in the search field.
+    val results = remember(state.progress.results, state.order, state.direction) {
+        ResultSorter.sort(state.progress.results.values, state.order, state.direction)
+    }
     val selected: MergedResult? = state.selectedId?.let { state.progress.results[it] }
-
-    val select: (MergedResult) -> Unit = { result -> search.select(result.id) }
-    // In a single pane the back button (or gesture) closes the details and shows the list again.
-    BackHandler(enabled = !shape.hasTwoPanes && !shape.isTabletop && state.detailOpen && selected != null) { search.closeDetail() }
-    // In tabletop posture the details take the upper half; back returns to the results.
-    BackHandler(enabled = shape.isTabletop && selected != null) { search.select(null) }
-
-    val filterContent: @Composable (Modifier, Boolean) -> Unit = { contentModifier, withCategories ->
-        FilterContent(
-            order = state.order,
-            direction = state.direction,
-            onPickSort = search::pickSort,
-            providers = providers.orEmpty(),
-            selectedProviders = state.providerIds,
-            onProvidersChange = search::setProviders,
-            modifier = contentModifier,
-            categories = if (withCategories) {
-                { CategoryChips(state.categories, search::toggleCategory, search::clearCategories) }
-            } else {
-                null
-            },
-        )
+    // Whether the user is looking at a result's details. Resizing or folding never changes this, so a
+    // detail screen the user closed does not come back, and one they are reading does not vanish.
+    val detailVisible = state.detailOpen && selected != null
+    val plan = shape.planPanes()
+    val fullScreenDetail = detailVisible && !shape.isTabletop && plan is PanePlan.Single
+    // Results alone next to a hinge that has a gap: keep them on the list side of it.
+    val resultsOnlyPlan: PanePlan.Single? = when {
+        plan is PanePlan.Single -> plan
+        plan is PanePlan.Split && plan.hingeGap > 0.dp -> PanePlan.Single(endInset = (shape.contentWidth - plan.listWidth).coerceAtLeast(0.dp))
+        else -> null
     }
 
-    val results: @Composable (Modifier, Boolean) -> Unit = { resultsModifier, showControls ->
-        SearchPane(
-            shape = shape,
+    FullScreenDetailEffect(fullScreenDetail)
+    val closeDetail = {
+        restoreFocusId = state.selectedId
+        search.closeDetail()
+    }
+    // Back closes the details, whether they replace the list, sit beside it or fill the upper half.
+    BackHandler(enabled = detailVisible) { closeDetail() }
+
+    // After the filters close, focus returns to the button that opened them.
+    LaunchedEffect(showFilters) {
+        if (showFilters) {
+            filtersWereOpen = true
+        } else if (filtersWereOpen) {
+            filtersWereOpen = false
+            runCatching { filterFocus.requestFocus() }
+        }
+    }
+
+    // With little height (a phone in landscape) the category strip slides away while scrolling down
+    // and comes back on scrolling up or while typing. The search field and filter button stay.
+    var fieldFocused by remember { mutableStateOf(false) }
+    val stripVisible by remember(shape.isShort) {
+        derivedStateOf { !shape.isShort || fieldFocused || !listState.canScrollBackward || listState.lastScrolledBackward }
+    }
+
+    val details: @Composable (asPane: Boolean, onBack: () -> Unit) -> Unit = { asPane, onBack ->
+        if (selected != null) {
+            ResultDetails(
+                result = selected,
+                favorite = selected.id in favoriteIds,
+                names = names,
+                actions = actions,
+                onToggleFavorite = { library.toggleFavorite(selected) },
+                onBack = onBack,
+                asPane = asPane,
+            )
+        }
+    }
+    val controls: @Composable () -> Unit = {
+        SearchControls(
             state = state,
+            search = search,
+            shape = shape,
+            searchFocus = searchFocus,
+            filterFocus = filterFocus,
+            onOpenFilters = { showFilters = true },
+            stripVisible = stripVisible,
+            onFieldFocus = { fieldFocused = it },
+        )
+    }
+    val resultsPane: @Composable (Modifier) -> Unit = { paneModifier ->
+        ResultsPane(
+            state = state,
+            results = results,
             names = names,
             favoriteIds = favoriteIds,
             enabledProviders = enabledCount,
             search = search,
             actions = actions,
             listState = listState,
-            searchFocus = searchFocus,
-            showControls = showControls,
-            categoriesInline = !shape.hasThreePanes,
-            onOpenFilters = { showFilters = true },
-            onSelect = select,
+            onSelect = { result -> search.select(result.id) },
             onToggleFavorite = library::toggleFavorite,
-            modifier = resultsModifier,
+            onOpenProviders = { app.post(AppEvent.Navigate(Destination.Providers)) },
+            restoreFocusId = restoreFocusId,
+            onFocusRestored = { restoreFocusId = null },
+            bottomPadding = if (shape.isTabletop) 8.dp else 24.dp,
+            modifier = paneModifier,
         )
     }
 
@@ -165,74 +182,62 @@ fun SearchScreen(
         when {
             shape.isTabletop -> TabletopLayout(
                 shape = shape,
-                top = {
-                    if (selected != null) {
-                        ResultDetails(
-                            result = selected,
-                            favorite = selected.id in favoriteIds,
-                            names = names,
-                            actions = actions,
-                            onToggleFavorite = { library.toggleFavorite(selected) },
-                            onBack = { search.select(null) },
-                        )
-                    } else {
-                        SearchResultsOnly(state, names, favoriteIds, enabledCount, search, actions, listState, select, library::toggleFavorite, shape)
-                    }
-                },
-                bottom = { SearchControls(state, search, searchFocus, categoriesInline = true, onOpenFilters = { showFilters = true }, names = names, actions = actions) },
+                top = { if (detailVisible) details(false, closeDetail) else resultsPane(Modifier) },
+                bottom = controls,
             )
 
-            else -> Row(Modifier.fillMaxSize()) {
-                if (shape.hasThreePanes) {
-                    Surface(Modifier.width(280.dp).fillMaxHeight(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                        filterContent(Modifier.fillMaxSize(), true)
+            fullScreenDetail -> Box(Modifier.fillMaxSize().hingeSafe(plan as PanePlan.Single)) { details(false, closeDetail) }
+
+            plan is PanePlan.Split && detailVisible && plan.hingeGap > 0.dp -> {
+                // A hinge with a gap: the controls belong to the list side, nothing sits under the hinge.
+                Row(Modifier.fillMaxSize()) {
+                    Column(Modifier.width(plan.listWidth).fillMaxHeight()) {
+                        controls()
+                        resultsPane(Modifier.weight(1f))
                     }
-                    VerticalDivider()
+                    Spacer(Modifier.width(plan.hingeGap))
+                    Box(Modifier.weight(1f).fillMaxHeight()) { details(true, closeDetail) }
                 }
-                val detailPane: @Composable () -> Unit = {
-                    if (selected != null) {
-                        ResultDetails(
-                            result = selected,
-                            favorite = selected.id in favoriteIds,
-                            names = names,
-                            actions = actions,
-                            onToggleFavorite = { library.toggleFavorite(selected) },
-                            onBack = if (shape.hasTwoPanes) null else search::closeDetail,
-                        )
+            }
+
+            else -> Column(Modifier.fillMaxSize().hingeSafe(resultsOnlyPlan)) {
+                controls()
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    if (plan is PanePlan.Split && detailVisible) {
+                        // Below the shared controls: the results, a divider, the selected result's details.
+                        Box(Modifier.width(plan.listWidth).fillMaxHeight()) { resultsPane(Modifier) }
+                        VerticalDivider()
+                        Box(Modifier.weight(1f).fillMaxHeight()) { details(true, closeDetail) }
                     } else {
-                        DetailsPlaceholder()
+                        // No result open, or only one pane fits: the results take the whole width.
+                        Box(Modifier.weight(1f).fillMaxHeight()) { resultsPane(Modifier) }
                     }
-                }
-                when {
-                    shape.hasTwoPanes -> TwoPane(
-                        shape,
-                        list = { results(Modifier.fillMaxSize(), true) },
-                        detail = detailPane,
-                        // Next to the filter panel the results get most of the room, enough for the table.
-                        listWidthOverride = if (shape.hasThreePanes) ((shape.widthDp - 280.dp) * 0.62f) else null,
-                    )
-                    state.detailOpen && selected != null -> detailPane()
-                    else -> results(Modifier.fillMaxSize(), true)
                 }
             }
         }
     }
 
-    if (showFilters && !shape.hasThreePanes) {
-        FilterSheet(onDismiss = { showFilters = false }) {
-            filterContent(Modifier, false)
+    if (showFilters) {
+        val initial = FilterDraft(state.categories, state.providerIds, state.order, state.direction)
+        val dismiss = { showFilters = false }
+        val apply: (FilterDraft) -> Unit = { draft ->
+            search.applyFilters(draft.categories, draft.providerIds, draft.order, draft.direction)
+            showFilters = false
+        }
+        val roomy = shape.width >= WidthClass.Medium || shape.isShort
+        if (roomy) {
+            FilterDialog(initial, providers.orEmpty(), onApply = apply, onDismiss = dismiss)
+        } else {
+            FilterSheet(initial, providers.orEmpty(), onApply = apply, onDismiss = dismiss)
         }
     }
 }
 
-@Composable
-private fun DetailsPlaceholder() {
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        CenteredMessage("Select a result", body = "Its details show up here.")
-    }
-}
+/** Keeps the content off one side of a hinge that has a gap; no padding on a flat display. */
+private fun Modifier.hingeSafe(plan: PanePlan.Single?): Modifier =
+    if (plan == null || (plan.startInset <= 0.dp && plan.endInset <= 0.dp)) this else this.padding(start = plan.startInset, end = plan.endInset)
 
-/** Results above the hinge, controls below it. */
+/** Results (or details) above the hinge, controls below it. */
 @Composable
 private fun TabletopLayout(
     shape: WindowShape,
@@ -241,230 +246,7 @@ private fun TabletopLayout(
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(shape.hingeFraction).fillMaxWidth()) { top() }
-        VerticalDividerSpacer()
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Box(Modifier.weight(1f - shape.hingeFraction).fillMaxWidth().imePadding()) { bottom() }
-    }
-}
-
-@Composable
-private fun VerticalDividerSpacer() {
-    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-/** Controls, status and results for one column (the list pane). */
-@Composable
-private fun SearchPane(
-    shape: WindowShape,
-    state: SearchUiState,
-    names: Map<String, String>,
-    favoriteIds: Set<String>,
-    enabledProviders: Int,
-    search: SearchViewModel,
-    actions: ResultActions,
-    listState: LazyListState,
-    searchFocus: FocusRequester,
-    showControls: Boolean,
-    categoriesInline: Boolean,
-    onOpenFilters: () -> Unit,
-    onSelect: (MergedResult) -> Unit,
-    onToggleFavorite: (MergedResult) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var fieldFocused by remember { mutableStateOf(false) }
-    // With little height (the cover screen in landscape) the controls slide away while
-    // scrolling down and come back on scrolling up or while typing.
-    val controlsVisible by remember(shape.isShort) {
-        derivedStateOf {
-            !shape.isShort || fieldFocused || !listState.canScrollBackward || listState.lastScrolledBackward
-        }
-    }
-    Column(modifier) {
-        AnimatedVisibility(visible = controlsVisible, enter = expandVertically(), exit = shrinkVertically()) {
-            SearchControls(
-                state, search, searchFocus, categoriesInline, onOpenFilters, names, actions,
-                onFieldFocus = { fieldFocused = it },
-            )
-        }
-        SearchResultsOnly(state, names, favoriteIds, enabledProviders, search, actions, listState, onSelect, onToggleFavorite, shape)
-    }
-}
-
-/** The search field, category chips, filter button and provider status. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun SearchControls(
-    state: SearchUiState,
-    search: SearchViewModel,
-    focus: FocusRequester,
-    categoriesInline: Boolean,
-    onOpenFilters: () -> Unit,
-    names: Map<String, String>,
-    actions: ResultActions,
-    onFieldFocus: (Boolean) -> Unit = {},
-) {
-    val keyboard = LocalSoftwareKeyboardController.current
-    val submit = {
-        keyboard?.hide()
-        search.run()
-    }
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = if (state.imdbId != null && state.text.isBlank()) state.imdbId else state.text,
-                onValueChange = search::setText,
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focus)
-                    .onFocusChanged { onFieldFocus(it.isFocused) }
-                    // "/" would type a slash; only Enter is special here.
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
-                            submit()
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                singleLine = true,
-                placeholder = { Text("Search torrents") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.text.isNotEmpty() || state.imdbId != null) {
-                        IconButton(onClick = { search.setText("") }) { Icon(Icons.Filled.Clear, contentDescription = "Clear") }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { submit() }),
-                shape = MaterialTheme.shapes.extraLarge,
-            )
-            if (state.running) {
-                OutlinedButton(onClick = search::cancel) {
-                    Icon(Icons.Filled.Stop, contentDescription = null, Modifier.size(18.dp))
-                    Text("Stop", Modifier.padding(start = 6.dp))
-                }
-            } else {
-                Button(onClick = submit, enabled = state.canSearch) { Text("Search") }
-            }
-        }
-        if (categoriesInline) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val customFilters = state.providerIds != null
-                IconButton(onClick = onOpenFilters) {
-                    BadgedBox(badge = { if (customFilters) Badge() }) {
-                        Icon(Icons.Filled.Tune, contentDescription = "Filters and sorting: ${sortLabel(state.order, state.direction)}")
-                    }
-                }
-                CategoryChips(state.categories, search::toggleCategory, search::clearCategories, wrap = false)
-            }
-        }
-    }
-}
-
-/** Results with their state: progress, errors, empty and first-use screens. */
-@Composable
-private fun SearchResultsOnly(
-    state: SearchUiState,
-    names: Map<String, String>,
-    favoriteIds: Set<String>,
-    enabledProviders: Int,
-    search: SearchViewModel,
-    actions: ResultActions,
-    listState: LazyListState,
-    onSelect: (MergedResult) -> Unit,
-    onToggleFavorite: (MergedResult) -> Unit,
-    shape: WindowShape,
-) {
-    val sorted = state.sorted
-    Column(Modifier.fillMaxSize()) {
-        if (state.running) LinearProgressIndicator(Modifier.fillMaxWidth())
-        state.error?.let { message ->
-            Card(
-                Modifier.padding(16.dp).fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            ) { Text(message, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onErrorContainer) }
-        }
-        // One line: the result count on the left, the providers' status (a small chip that
-        // opens the details) on the right, instead of a chip per provider.
-        ResultsSummary(state, sorted.size, names, actions)
-        when {
-            sorted.isNotEmpty() -> {
-                ResultsList(
-                    results = sorted,
-                    selectedId = state.selectedId,
-                    favoriteIds = favoriteIds,
-                    order = state.order,
-                    direction = state.direction,
-                    actions = actions,
-                    onSort = search::toggleSort,
-                    onSelect = onSelect,
-                    onToggleFavorite = onToggleFavorite,
-                    modifier = Modifier.weight(1f),
-                    state = listState,
-                    contentPadding = PaddingValues(bottom = if (shape.isTabletop) 8.dp else 24.dp),
-                    footer = if (state.progress.done && !state.running) {
-                        {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                OutlinedButton(onClick = search::loadMore) { Text("More results (page ${state.page + 1})") }
-                            }
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-            state.running -> CenteredMessage(
-                "Searching ${state.progress.providers.size.coerceAtLeast(1)} provider${if (state.progress.providers.size == 1) "" else "s"}…",
-            )
-            !state.idle -> {
-                if (state.progress.providers.isEmpty()) {
-                    CenteredMessage("No provider can handle this search.", body = "Enable providers or try other categories.")
-                } else {
-                    CenteredMessage("No results for “${state.shown?.text.orEmpty().ifBlank { state.shown?.imdbId.orEmpty() }}”.", body = "Try fewer or different words, or other categories.")
-                }
-            }
-            else -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(
-                        painterResource(R.drawable.ic_launcher_monochrome),
-                        contentDescription = null,
-                        modifier = Modifier.size(96.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text("Search every provider at once", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-                    Text(
-                        "Results stream in as each provider answers, with duplicates merged. " +
-                            "You're searching $enabledProviders provider${if (enabledProviders == 1) "" else "s"}.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ResultsSummary(state: SearchUiState, count: Int, names: Map<String, String>, actions: ResultActions) {
-    if (state.progress.providers.isEmpty() && count == 0) return
-    val subject = state.shown?.text.orEmpty().ifBlank { state.shown?.imdbId.orEmpty() }
-    val tail = when {
-        state.running -> " · still searching…"
-        state.progress.durationMs != null -> " in ${Format.duration(state.progress.durationMs)}"
-        else -> ""
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            if (count > 0) "$count results for $subject$tail" else "",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        ProviderStatusBar(state.progress.providers, names, onChallenge = actions::challenge)
     }
 }

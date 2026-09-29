@@ -6,7 +6,14 @@ package io.github.ashxtrem.hashlark.core
 sealed interface ProviderProgress {
     data object Running : ProviderProgress
     data class Finished(val count: Int, val latencyMs: Long) : ProviderProgress
-    data class Failed(val kind: ErrorKind, val message: String, val latencyMs: Long) : ProviderProgress
+    data class Failed(val kind: ErrorKind, val message: String, val latencyMs: Long) : ProviderProgress {
+        /** The user stopped the search before this provider answered; it did not fail. */
+        val wasCancelled: Boolean get() = message == CANCELLED
+
+        companion object {
+            const val CANCELLED = "Cancelled"
+        }
+    }
 }
 
 /**
@@ -29,7 +36,7 @@ data class SearchProgress(
     fun cancelled(): SearchProgress = copy(
         done = true,
         providers = providers.mapValues { (_, p) ->
-            if (p is ProviderProgress.Running) ProviderProgress.Failed(ErrorKind.Timeout, "Cancelled", 0) else p
+            if (p is ProviderProgress.Running) ProviderProgress.Failed(ErrorKind.Timeout, ProviderProgress.Failed.CANCELLED, 0) else p
         },
     )
 

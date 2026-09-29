@@ -35,6 +35,8 @@ data class SearchUiState(
     val progress: SearchProgress = SearchProgress(),
     val running: Boolean = false,
     val error: String? = null,
+    /** The user stopped the search; the results shown are what had arrived by then. */
+    val cancelled: Boolean = false,
     val selectedId: String? = null,
     /** Narrow windows show the selected result's details instead of the list. */
     val detailOpen: Boolean = false,
@@ -76,6 +78,13 @@ class SearchViewModel(private val runtime: HashlarkRuntime) : ViewModel() {
     fun clearCategories() = _state.update { it.copy(categories = emptySet()) }
 
     fun setProviders(ids: Set<String>?) = _state.update { it.copy(providerIds = ids) }
+
+    /** The filter sheet's Apply: categories, providers and sort change together, and nothing is searched yet. */
+    fun applyFilters(categories: Set<Category>, providerIds: Set<String>?, order: SortOrder, direction: SortDirection) =
+        _state.update { it.copy(categories = categories, providerIds = providerIds, order = order, direction = direction) }
+
+    /** Back to searching every enabled provider in every category. The sort order is a view setting and stays. */
+    fun resetFilters() = _state.update { it.copy(categories = emptySet(), providerIds = null) }
 
     /** Header tap: descending the first time, ascending the second. */
     fun toggleSort(order: SortOrder) = _state.update {
@@ -126,7 +135,7 @@ class SearchViewModel(private val runtime: HashlarkRuntime) : ViewModel() {
     fun cancel() {
         job?.cancel()
         job = null
-        _state.update { it.copy(running = false, progress = it.progress.cancelled()) }
+        _state.update { it.copy(running = false, cancelled = true, progress = it.progress.cancelled()) }
     }
 
     private fun start(query: SearchQuery, append: Boolean) {
@@ -137,6 +146,7 @@ class SearchViewModel(private val runtime: HashlarkRuntime) : ViewModel() {
                 page = query.page,
                 running = true,
                 error = null,
+                cancelled = false,
                 progress = if (append) it.progress.copy(done = false, providers = emptyMap()) else SearchProgress(),
                 selectedId = if (append) it.selectedId else null,
                 detailOpen = append && it.detailOpen,
