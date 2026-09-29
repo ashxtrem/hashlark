@@ -23,7 +23,7 @@ Unsigned installers trigger SmartScreen warnings. The options are:
 
 ### macOS signing and notarization (optional)
 
-This needs an Apple Developer account. Add these secrets: `APPLE_CERTIFICATE` (base64 .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific password) and `APPLE_TEAM_ID`. Without them, macOS builds are unsigned and users must right-click → Open.
+This needs an Apple Developer account. Add these secrets: `APPLE_CERTIFICATE` (base64 .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific password) and `APPLE_TEAM_ID`. Then pass them as environment variables on the `tauri-action` step in `.github/workflows/release.yml`. Until those variables are set, macOS builds are unsigned and users must right-click → Open.
 
 ### Container registry
 
