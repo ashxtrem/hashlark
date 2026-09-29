@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+schema: 1
+id: academic-torrents
+name: Academic Torrents
+description: Research datasets, papers and course videos
+language: en
+version: 1
+links:
+  - https://academictorrents.com/
+caps:
+  categories:
+    books: Paper
+    other: Dataset
+search:
+  # Academic Torrents asks to search its daily XML export instead of
+  # scraping pages, so the whole database is fetched twice a day and
+  # filtered locally.
+  path: database.xml
+  response: xml
+  static_feed:
+    ttl_hours: 12
+  rows: "//item"
+  max_rows: 20000
+  fields:
+    title:
+      path: title
+    info_hash:
+      path: infohash
+    details:
+      path: link
+      optional: true
+    size:
+      path: size
+      optional: true
+    category:
+      path: category
+      optional: true
+test:
+  query: mit

@@ -1,0 +1,39 @@
+[package]
+name = "hashlark-desktop"
+description = "Hashlark desktop app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "hashlark"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.7.0", features = [] }
+
+[dependencies]
+anyhow = "1.0.104"
+hashlark-core = { version = "0.1.0", path = "../../../crates/hashlark-core", features = ["tor"] }
+hashlark-server = { version = "0.1.0", path = "../../../crates/hashlark-server" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tauri = { version = "2.12.0", features = [] }
+tauri-plugin-dialog = "2.8.0"
+tauri-plugin-opener = "2.6.0"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-single-instance = "2.5.0"
+tauri-plugin-updater = "2.13.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+url = "2.5.8"
+
+[lints]
+workspace = true
+
+[target."cfg(windows)".dependencies]
+winreg = "0.56.0"

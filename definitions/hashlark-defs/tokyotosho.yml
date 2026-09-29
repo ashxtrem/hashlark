@@ -1,0 +1,44 @@
+schema: 1
+id: tokyotosho
+name: Tokyo Toshokan
+description: Japanese media torrent listing
+language: en
+version: 1
+links:
+  - https://www.tokyotosho.info/
+caps:
+  categories:
+    anime: "1"
+    music: "2"
+    books: "3"
+    other: "5"
+search:
+  path: rss.php
+  params:
+    terms: "{{ query.text }}"
+    type: "{{ query.site_categories | first | default('0') }}"
+  response: xml
+  rows: "//item"
+  fields:
+    title:
+      path: title
+    details:
+      path: guid
+      optional: true
+    download:
+      path: link
+    magnet:
+      path: description
+      optional: true
+      filters:
+        - regex: "(magnet:\\?[^\"<]+)"
+    size:
+      path: description
+      optional: true
+      filters:
+        - regex: "Size: ([0-9.,]+\\s*[KMGT]i?B)"
+    date:
+      path: pubDate
+      optional: true
+test:
+  query: naruto

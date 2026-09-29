@@ -1,0 +1,30 @@
+# Rust
+/target/
+
+# Node / front ends
+node_modules/
+apps/desktop/build/
+apps/desktop/.svelte-kit/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Android
+apps/android/.gradle/
+apps/android/build/
+apps/android/**/build/
+apps/android/local.properties
+
+# Local data and secrets
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+hashlark.toml
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

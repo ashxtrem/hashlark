@@ -1,0 +1,60 @@
+{
+  "responseHeader": {
+    "status": 0,
+    "QTime": 961,
+    "params": {
+      "query": "(title:(night of the living dead) OR subject:(night of the living dead)) AND format:&quot;Archive BitTorrent&quot;",
+      "qin": "(title:(night of the living dead) OR subject:(night of the living dead)) AND format:&quot;Archive BitTorrent&quot;",
+      "fields": "identifier,title,item_size,publicdate,mediatype,btih",
+      "wt": "json",
+      "rows": 5,
+      "start": 0
+    }
+  },
+  "response": {
+    "numFound": 561,
+    "start": 0,
+    "docs": [
+      {
+        "btih": "488a7bc4f9b8c3eeef3bb33329376661542e4500",
+        "identifier": "Civic_Theatre_Night_of_the_Living_Dead_Newscast",
+        "item_size": 12955769,
+        "mediatype": "movies",
+        "publicdate": "2016-10-04T18:38:22Z",
+        "title": "Civic Theatre \"Night of the Living Dead\" Newscast"
+      },
+      {
+        "btih": "4f158d9f589c0e3db7fbf7666cebadfdee48a734",
+        "identifier": "house-of-svengoolie-night-of-the-living-dead-1990",
+        "item_size": 2175313399,
+        "mediatype": "movies",
+        "publicdate": "2026-09-27T19:58:13Z",
+        "title": "House Of Svengoolie Night Of The Living Dead (1990)"
+      },
+      {
+        "btih": "d5c632d1ca4fceed17211fa13ae261e149f0bec5",
+        "identifier": "LandOfTheCreepsEpisode180JohnnyAndBarbaraAreComingForYou",
+        "item_size": 123296371,
+        "mediatype": "audio",
+        "publicdate": "2018-10-24T06:09:41Z",
+        "title": "Land Of The Creeps Episode 180 : Johnny And Barbara Are Coming For You"
+      },
+      {
+        "btih": "76e9d5a7a46e4fc4bc57902c0feab69d30e39d55",
+        "identifier": "the-marvel-super-heroes-podcast-episode-123",
+        "item_size": 88591017,
+        "mediatype": "audio",
+        "publicdate": "2022-10-13T07:55:04Z",
+        "title": "The Marvel Super Heroes Podcast Episode 123"
+      },
+      {
+        "btih": "7b94b1bd5b9a5607155c34c00ad71906f932dc78",
+        "identifier": "zombicast000200",
+        "item_size": 83018138,
+        "mediatype": "audio",
+        "publicdate": "2019-07-25T05:20:30Z",
+        "title": "ZombiCast [00:02:00] Duration of Dawn of the Dead"
+      }
+    ]
+  }
+}

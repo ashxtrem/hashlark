@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+schema: 1
+id: foss-torrents
+name: FOSS Torrents
+description: Open-source software, games and Linux distributions
+language: en
+version: 1
+links:
+  - https://fosstorrents.com/
+caps:
+  categories:
+    software: software
+    games: games
+search:
+  # Search runs in the browser on this site, so use the full torrent feed.
+  path: feed/torrents.xml
+  response: xml
+  static_feed:
+    ttl_hours: 6
+  rows: "//item"
+  max_rows: 20000
+  fields:
+    title:
+      path: title
+    download:
+      path: link
+    date:
+      path: pubDate
+      optional: true
+test:
+  query: linux

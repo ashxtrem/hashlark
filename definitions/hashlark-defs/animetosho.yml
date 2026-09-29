@@ -1,0 +1,46 @@
+schema: 1
+id: animetosho
+name: Anime Tosho
+description: Anime mirror of Nyaa, AniDex and Tokyo Toshokan
+language: en
+version: 1
+links:
+  - https://feed.animetosho.org/
+caps:
+  categories:
+    anime: anime
+search:
+  path: json
+  params:
+    q: "{{ query.text }}"
+  response: json
+  rows: "$[*]"
+  fields:
+    title:
+      path: "$.title"
+    details:
+      path: "$.link"
+      optional: true
+    download:
+      path: "$.torrent_url"
+      optional: true
+    magnet:
+      path: "$.magnet_uri"
+      optional: true
+    info_hash:
+      path: "$.info_hash"
+      optional: true
+    size:
+      path: "$.total_size"
+      optional: true
+    seeders:
+      path: "$.seeders"
+      optional: true
+    leechers:
+      path: "$.leechers"
+      optional: true
+    date:
+      path: "$.timestamp"
+      optional: true
+test:
+  query: naruto

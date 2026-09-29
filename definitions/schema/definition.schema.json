@@ -1,0 +1,601 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Definition",
+  "description": "A provider definition: describes a site as data, never code.",
+  "type": "object",
+  "properties": {
+    "caps": {
+      "$ref": "#/$defs/Caps",
+      "default": {
+        "categories": {},
+        "modes": [
+          "search"
+        ],
+        "paging": null
+      }
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "download": {
+      "description": "How to find the download link on a result's details page, for sites\nwhose result rows don't carry it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Download"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "headers": {
+      "description": "Headers sent with every request. Values are templates.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "id": {
+      "description": "Unique id: lowercase letters, digits and dashes, e.g. `linuxtracker`.",
+      "type": "string"
+    },
+    "language": {
+      "description": "Main language of the site, e.g. `en`.",
+      "type": "string",
+      "default": "en"
+    },
+    "links": {
+      "description": "Base URLs, tried in order. `.onion` links are used only with Tor.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "login": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Login"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "schema": {
+      "description": "Format version. Must be `1`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "search": {
+      "$ref": "#/$defs/Search"
+    },
+    "settings": {
+      "description": "Values the user fills in (credentials, API keys, options).",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SettingDef"
+      }
+    },
+    "test": {
+      "description": "Query used by \"Test\" and health checks.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TestSpec"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "type": {
+      "$ref": "#/$defs/SiteType",
+      "default": "public"
+    },
+    "version": {
+      "description": "Increase on every change, so repositories can deliver updates.",
+      "type": "integer",
+      "format": "uint32",
+      "default": 1,
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "name",
+    "links",
+    "search"
+  ],
+  "$defs": {
+    "Caps": {
+      "type": "object",
+      "properties": {
+        "categories": {
+          "description": "Hashlark category → the site's own category id. Categories left out\naren't searched on this site. Empty means the site has any content.",
+          "type": "object",
+          "properties": {
+            "anime": {
+              "type": "string"
+            },
+            "books": {
+              "type": "string"
+            },
+            "games": {
+              "type": "string"
+            },
+            "movies": {
+              "type": "string"
+            },
+            "music": {
+              "type": "string"
+            },
+            "other": {
+              "type": "string"
+            },
+            "software": {
+              "type": "string"
+            },
+            "tv": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "modes": {
+          "type": "array",
+          "default": [
+            "search"
+          ],
+          "items": {
+            "$ref": "#/$defs/Mode"
+          }
+        },
+        "paging": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Paging"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "Download": {
+      "type": "object",
+      "properties": {
+        "attr": {
+          "type": "string",
+          "default": "href"
+        },
+        "filters": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FilterSpec"
+          }
+        },
+        "selector": {
+          "description": "CSS selector for the link on the details page.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "selector"
+      ]
+    },
+    "FieldSpec": {
+      "description": "Where a field's value comes from. Use one of `selector` (HTML), `path`\n(JSON/XML) or `text` (a template); with none, the row's own text is used.",
+      "type": "object",
+      "properties": {
+        "attr": {
+          "description": "HTML: read this attribute instead of the text.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "filters": {
+          "description": "Transformations applied in order.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FilterSpec"
+          }
+        },
+        "optional": {
+          "description": "A missing value isn't an error.",
+          "type": "boolean",
+          "default": false
+        },
+        "path": {
+          "description": "JSONPath or XML path inside the row.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "selector": {
+          "description": "CSS selector inside the row (HTML).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "text": {
+          "description": "A template instead of reading the page. Can use `row.<field>` for\nfields listed earlier.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "FilterArgs": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "format": "int64"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "FilterSpec": {
+      "description": "A filter: either a bare name (`trim`) or a one-key map with arguments\n(`regex: \"id=(\\\\d+)\"`, `replace: [\",\", \"\"]`).",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FilterArgs"
+          }
+        }
+      ]
+    },
+    "HttpMethod": {
+      "type": "string",
+      "enum": [
+        "get",
+        "post"
+      ]
+    },
+    "Login": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "description": "For `form`: form fields. Values are templates, e.g. `\"{{ cfg.username }}\"`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "method": {
+          "$ref": "#/$defs/LoginMethod"
+        },
+        "path": {
+          "description": "For `form`: where the login form posts to.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "test": {
+          "description": "Checks that login worked.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoginTest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ]
+    },
+    "LoginMethod": {
+      "oneOf": [
+        {
+          "description": "Post a login form once; the session cookie is kept.",
+          "type": "string",
+          "const": "form"
+        },
+        {
+          "description": "Send the `cookie` setting as the `Cookie` header on every request.",
+          "type": "string",
+          "const": "cookie"
+        }
+      ]
+    },
+    "LoginTest": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Page to load after logging in.",
+          "type": "string"
+        },
+        "selector": {
+          "description": "CSS selector that exists only when logged in (e.g. a logout link).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "selector"
+      ]
+    },
+    "Mode": {
+      "oneOf": [
+        {
+          "description": "Free-text search.",
+          "type": "string",
+          "const": "search"
+        },
+        {
+          "description": "Search by IMDb id (`{{ query.imdb }}`).",
+          "type": "string",
+          "const": "imdb"
+        }
+      ]
+    },
+    "Paging": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "description": "Results per page, for sites paged by offset (`query.offset`).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "start": {
+          "description": "The site's number for the first page (usually 0 or 1). Available to\ntemplates as `query.page`.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 1,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResponseKind": {
+      "oneOf": [
+        {
+          "description": "Rows and fields use CSS selectors.",
+          "type": "string",
+          "const": "html"
+        },
+        {
+          "description": "Rows and fields use JSONPath (`$` is the row inside fields).",
+          "type": "string",
+          "const": "json"
+        },
+        {
+          "description": "RSS/XML. Rows and fields use simple paths like `channel/item` or\n`enclosure/@url`.",
+          "type": "string",
+          "const": "xml"
+        }
+      ]
+    },
+    "Search": {
+      "type": "object",
+      "properties": {
+        "client_filter": {
+          "description": "Keep only rows whose title contains every query word. Implied by\n`static_feed`.",
+          "type": "boolean",
+          "default": false
+        },
+        "error_selector": {
+          "description": "HTML only: if this selector matches, the site reported an error.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "fields": {
+          "description": "How to read each result field from a row.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldSpec"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "max_rows": {
+          "description": "Stop after this many rows.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "default": null,
+          "minimum": 0
+        },
+        "method": {
+          "$ref": "#/$defs/HttpMethod",
+          "default": "get"
+        },
+        "params": {
+          "description": "Query parameters (GET) or form fields (POST). Values are templates.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "path": {
+          "description": "Path (or full URL) of the search, relative to the chosen link.\nTemplate, e.g. `/search/{{ query.text | urlencode }}/{{ query.page }}/`.",
+          "type": "string"
+        },
+        "response": {
+          "$ref": "#/$defs/ResponseKind"
+        },
+        "rows": {
+          "description": "Selects one element per result.",
+          "type": "string"
+        },
+        "static_feed": {
+          "description": "The page doesn't depend on the query (e.g. a full RSS feed): fetch it\nonce, cache it, and filter results locally.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StaticFeed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "response",
+        "rows",
+        "fields"
+      ]
+    },
+    "SettingDef": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "label": {
+          "description": "Label shown to the user. Defaults to the name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "name": {
+          "description": "Name used in templates as `cfg.<name>`.",
+          "type": "string"
+        },
+        "options": {
+          "description": "For `select`: value → label.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "type": {
+          "$ref": "#/$defs/SettingKind",
+          "default": "text"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "SettingKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "text",
+            "checkbox",
+            "select"
+          ]
+        },
+        {
+          "description": "Stored in the OS keychain, never shown again.",
+          "type": "string",
+          "const": "password"
+        }
+      ]
+    },
+    "SiteType": {
+      "type": "string",
+      "enum": [
+        "public",
+        "semi_private",
+        "private"
+      ]
+    },
+    "StaticFeed": {
+      "type": "object",
+      "properties": {
+        "ttl_hours": {
+          "description": "How long a fetched feed is reused.",
+          "type": "integer",
+          "format": "uint32",
+          "default": 6,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "TestSpec": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    }
+  }
+}

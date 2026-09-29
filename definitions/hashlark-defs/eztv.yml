@@ -1,0 +1,42 @@
+schema: 1
+id: eztv
+name: EZTV
+description: TV episodes (IMDb-id search only)
+language: en
+version: 1
+links:
+  - https://eztvx.to/
+caps:
+  categories:
+    tv: tv
+  modes: [imdb]
+  paging:
+    start: 1
+search:
+  path: api/get-torrents
+  params:
+    imdb_id: "{{ query.imdb | replace('tt', '') }}"
+    limit: "100"
+    page: "{{ query.page }}"
+  response: json
+  rows: "$.torrents[*]"
+  fields:
+    title:
+      path: "$.title"
+    magnet:
+      path: "$.magnet_url"
+    info_hash:
+      path: "$.hash"
+      optional: true
+    size:
+      path: "$.size_bytes"
+      optional: true
+    seeders:
+      path: "$.seeds"
+      optional: true
+    leechers:
+      path: "$.peers"
+      optional: true
+    date:
+      path: "$.date_released_unix"
+      optional: true

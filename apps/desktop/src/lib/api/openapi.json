@@ -1,0 +1,3413 @@
+﻿{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hashlark API",
+    "description": "Search many torrent indexers at once. All routes except /health and /openapi.json need `Authorization: Bearer <token>`.",
+    "contact": {
+      "name": "Hashlark contributors"
+    },
+    "license": {
+      "name": "GPL-3.0-or-later",
+      "identifier": "GPL-3.0-or-later"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/api-keys": {
+      "get": {
+        "tags": [
+          "api keys"
+        ],
+        "summary": "API keys that can sign in to this server.",
+        "operationId": "list_api_keys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyInfo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "api keys"
+        ],
+        "summary": "Creates an API key. The key is returned only in this response.",
+        "operationId": "create_api_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewApiKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api-keys/{id}": {
+      "delete": {
+        "tags": [
+          "api keys"
+        ],
+        "summary": "Revokes an API key.",
+        "operationId": "revoke_api_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/definitions/check": {
+      "post": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "Validates a definition without saving it.",
+        "operationId": "check_definition",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefinitionCheck"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/definitions/convert": {
+      "post": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "Converts a Jackett (Cardigann) definition. Nothing is saved.",
+        "operationId": "convert_definition",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckDefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversion"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/definitions/preview": {
+      "post": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "Runs a definition once, live, without saving it.",
+        "operationId": "preview_definition",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewDefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The site failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/definitions/starter": {
+      "get": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "A commented starter definition.",
+        "operationId": "starter_definition",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`html` (default), `json` or `rss`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Id for the new definition.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YamlText"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/definitions/{id}": {
+      "get": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "A saved definition's YAML.",
+        "operationId": "get_definition",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredDefinition"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/favorites": {
+      "get": {
+        "tags": [
+          "favorites"
+        ],
+        "summary": "Saved results, newest first.",
+        "operationId": "list_favorites",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Favorite"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/favorites/{id}": {
+      "put": {
+        "tags": [
+          "favorites"
+        ],
+        "summary": "Saves a result from a recent search.",
+        "operationId": "add_favorite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Result id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Favorite"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "favorites"
+        ],
+        "operationId": "remove_favorite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness check. No authentication.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/history": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Recent searches, newest first.",
+        "operationId": "get_history",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum entries (default 50, max 500).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Deletes all search history.",
+        "operationId": "clear_history",
+        "responses": {
+          "204": {}
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/network/tor": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "State of built-in Tor (connecting, ready, or not running).",
+        "operationId": "tor_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/providers": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Lists every provider with its state and health.",
+        "operationId": "list_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderView"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Adds a provider. Re-adding a definition with the same id updates it.",
+        "operationId": "add_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddProvider"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid definition; `details` lists the problems",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/providers/{id}": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "One provider.",
+        "operationId": "get_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Removes a user-added provider.",
+        "operationId": "delete_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "400": {
+            "description": "Built-in providers can't be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Changes a provider (enable/disable, rename, network policy).",
+        "operationId": "update_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/providers/{id}/session": {
+      "post": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Stores cookies from a browser check the user completed on the site\n(desktop \"Open site to continue\").",
+        "operationId": "set_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Session"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/providers/{id}/test": {
+      "post": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Runs a provider's self-test now.",
+        "operationId": "test_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/repos": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Definition repositories, including the built-in one.",
+        "operationId": "list_repos",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepoView"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Adds a signed definition repository. Its providers are added disabled.",
+        "operationId": "add_repo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRepoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddRepoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, unsigned or duplicate repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Could not fetch it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/repos/{id}": {
+      "delete": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Removes a repository and its providers.",
+        "operationId": "remove_repo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/repos/{id}/sync": {
+      "post": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Fetches a repository's latest definitions now.",
+        "operationId": "sync_repo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/resolve": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Gets the magnet link or `.torrent` URL for a result.",
+        "operationId": "resolve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadTarget"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The provider failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/results/{id}": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "A result from a recent search.",
+        "operationId": "get_result",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Result id from a search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergedResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Streams a search as Server-Sent Events.",
+        "description": "Event names: `provider_started`, `results`, `provider_finished`,\n`provider_failed`, `done`. Each event's data is the JSON of a\n`SearchEvent`. `results` items with an `id` seen before replace it.\nClosing the connection cancels the search.",
+        "operationId": "search_stream",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Text to search for.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cat",
+            "in": "query",
+            "description": "Comma-separated categories, e.g. `movies,tv`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providers",
+            "in": "query",
+            "description": "Comma-separated provider ids. Default: all enabled providers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imdb",
+            "in": "query",
+            "description": "IMDb id, for providers that support it.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page. Default 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`relevance` (default), `title`, `seeders`, `peers`, `size` or `date`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of SearchEvent",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Runs a search to completion and returns sorted results.",
+        "operationId": "search_blocking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Current settings.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Replaces all settings. Fields left out take their defaults.",
+        "operationId": "put_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/tools/fetch-page": {
+      "post": {
+        "tags": [
+          "definitions"
+        ],
+        "summary": "Fetches a page for the definition editor's element picker.",
+        "operationId": "fetch_page",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FetchPageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FetchedPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/trackers": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Trackers added to magnets.",
+        "operationId": "list_trackers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/trackers/refresh": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Downloads the tracker list from the configured URL now.",
+        "operationId": "refresh_trackers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTrackersResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddProvider": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "From a YAML definition.",
+            "required": [
+              "yaml",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "definition"
+                ]
+              },
+              "yaml": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A Torznab endpoint (Jackett, Prowlarr, Bitmagnet).",
+            "required": [
+              "name",
+              "url",
+              "kind"
+            ],
+            "properties": {
+              "api_key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "torznab"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "How to add a provider."
+      },
+      "AddRepoRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The repository folder or its `index.json`."
+          }
+        }
+      },
+      "AddRepoResponse": {
+        "type": "object",
+        "required": [
+          "repo",
+          "sync"
+        ],
+        "properties": {
+          "repo": {
+            "$ref": "#/components/schemas/RepoView"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncReport"
+          }
+        }
+      },
+      "ApiKeyInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix ms."
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "description": "What kinds of query a provider supports.",
+        "required": [
+          "text_search",
+          "imdb_search",
+          "paging"
+        ],
+        "properties": {
+          "imdb_search": {
+            "type": "boolean"
+          },
+          "paging": {
+            "type": "boolean"
+          },
+          "text_search": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Category": {
+        "type": "string",
+        "description": "Content category. Providers map their own category ids onto these.",
+        "enum": [
+          "movies",
+          "tv",
+          "music",
+          "books",
+          "software",
+          "games",
+          "anime",
+          "other"
+        ]
+      },
+      "CheckDefinitionRequest": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
+      },
+      "Conversion": {
+        "type": "object",
+        "description": "The outcome of a conversion.",
+        "required": [
+          "yaml",
+          "warnings",
+          "valid",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Validation problems, if not valid."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "Whether the result passes validation as is."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Things that couldn't be converted exactly; review them."
+          },
+          "yaml": {
+            "type": "string",
+            "description": "The Hashlark definition, as YAML."
+          }
+        }
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the key is for, e.g. \"Phone\" or \"Sonarr\"."
+          }
+        }
+      },
+      "DefinitionCheck": {
+        "type": "object",
+        "description": "Result of checking a definition without saving it.",
+        "required": [
+          "ok",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "DohResolver": {
+        "type": "string",
+        "enum": [
+          "cloudflare",
+          "quad9",
+          "google",
+          "custom"
+        ]
+      },
+      "DohSettings": {
+        "type": "object",
+        "properties": {
+          "custom_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Custom DoH endpoint, used when `resolver` is `custom`.",
+            "default": null
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "fallback_to_system": {
+            "type": "boolean",
+            "description": "Fall back to the system resolver if DoH fails.",
+            "default": true
+          },
+          "resolver": {
+            "$ref": "#/components/schemas/DohResolver",
+            "default": "cloudflare"
+          }
+        }
+      },
+      "DownloadSettings": {
+        "type": "object",
+        "properties": {
+          "torrent_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where `.torrent` files are saved. `None` means the OS downloads folder.",
+            "default": null
+          }
+        }
+      },
+      "DownloadTarget": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "magnet"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "torrent_file"
+                ]
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          }
+        ],
+        "description": "What to hand to the OS to start a download."
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "Body of every error response.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable code, e.g. `not_found`."
+          },
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "For `invalid_definition`: every problem found."
+          },
+          "message": {
+            "type": "string"
+          },
+          "provider_error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorKind",
+                "description": "For `provider_error`: what went wrong with the provider."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ErrorKind": {
+        "type": "string",
+        "description": "Stable, serializable category of a [`ProviderError`].",
+        "enum": [
+          "timeout",
+          "blocked",
+          "challenge_required",
+          "auth_failed",
+          "rate_limited",
+          "parse_failed",
+          "http",
+          "network"
+        ]
+      },
+      "Favorite": {
+        "type": "object",
+        "description": "A saved result.",
+        "required": [
+          "result",
+          "saved_at"
+        ],
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/MergedResult"
+          },
+          "saved_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix ms when it was saved."
+          }
+        }
+      },
+      "FetchPageRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "FetchedPage": {
+        "type": "object",
+        "description": "A page fetched for the definition editor.",
+        "required": [
+          "url",
+          "status",
+          "html"
+        ],
+        "properties": {
+          "html": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "description": "Final URL after redirects."
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthState": {
+        "type": "string",
+        "description": "Overall state shown next to a provider.",
+        "enum": [
+          "unknown",
+          "ok",
+          "degraded",
+          "failing",
+          "auto_disabled"
+        ]
+      },
+      "HealthSummary": {
+        "type": "object",
+        "required": [
+          "state",
+          "consecutive_failures"
+        ],
+        "properties": {
+          "consecutive_failures": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "disabled_until": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix ms until which the provider is skipped, if auto-disabled."
+          },
+          "last_checked_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix ms of the last attempt."
+          },
+          "last_error_kind": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "p50_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "p95_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "state": {
+            "$ref": "#/components/schemas/HealthState"
+          },
+          "success_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Share of successful attempts in the recent window."
+          }
+        }
+      },
+      "HistoryEntry": {
+        "type": "object",
+        "description": "One saved search.",
+        "required": [
+          "id",
+          "query",
+          "ts",
+          "result_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "query": {
+            "$ref": "#/components/schemas/SearchQuery"
+          },
+          "result_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix ms."
+          }
+        }
+      },
+      "MagnetSettings": {
+        "type": "object",
+        "properties": {
+          "append_default_trackers": {
+            "type": "boolean",
+            "description": "Add the default trackers to magnets that already list their own.",
+            "default": false
+          },
+          "trackers_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "URL of a plain-text tracker list (one per line), refreshed daily.",
+            "default": null
+          }
+        }
+      },
+      "MergedResult": {
+        "type": "object",
+        "description": "A result after de-duplication across providers. This is what front ends\ndisplay.",
+        "required": [
+          "id",
+          "primary",
+          "sources",
+          "score"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id: derived from the infohash when known, so the same torrent\nkeeps its id across searches."
+          },
+          "leechers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Highest leecher count reported by any source.",
+            "minimum": 0
+          },
+          "primary": {
+            "$ref": "#/components/schemas/SearchResult",
+            "description": "Best combined view of the result. Missing fields are filled in from\nother sources as they arrive."
+          },
+          "score": {
+            "type": "number",
+            "format": "float",
+            "description": "Relevance score in `0.0..=1.0`."
+          },
+          "seeders": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Highest seeder count reported by any source.",
+            "minimum": 0
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderId"
+            },
+            "description": "Every provider that returned this torrent, in arrival order."
+          }
+        }
+      },
+      "NetworkPolicy": {
+        "type": "object",
+        "description": "Per-provider network policy.",
+        "properties": {
+          "proxy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Used when `route` is `proxy`.",
+            "default": null
+          },
+          "route": {
+            "$ref": "#/components/schemas/Route",
+            "default": "default"
+          }
+        }
+      },
+      "NetworkSettings": {
+        "type": "object",
+        "properties": {
+          "doh": {
+            "$ref": "#/components/schemas/DohSettings",
+            "default": {
+              "custom_url": null,
+              "enabled": true,
+              "fallback_to_system": true,
+              "resolver": "cloudflare"
+            }
+          },
+          "per_host_rate": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Requests per second allowed to one host.",
+            "default": 1,
+            "minimum": 0
+          },
+          "proxy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Global proxy, e.g. `socks5h://127.0.0.1:9050` or `http://proxy:8080`.",
+            "default": null
+          },
+          "tor": {
+            "$ref": "#/components/schemas/TorSettings",
+            "default": {
+              "enabled": false,
+              "mode": "embedded",
+              "socks_url": "socks5h://127.0.0.1:9050"
+            }
+          }
+        }
+      },
+      "NewApiKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiKeyInfo"
+          },
+          {
+            "type": "object",
+            "required": [
+              "key"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "A newly created key. The key itself is shown only once."
+      },
+      "PreviewDefinitionRequest": {
+        "type": "object",
+        "required": [
+          "yaml",
+          "query"
+        ],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Setting values (`cfg.*`) to use for this run only.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "yaml": {
+            "type": "string"
+          }
+        }
+      },
+      "ProviderId": {
+        "type": "string",
+        "description": "Stable identifier of a provider, e.g. `internet-archive`."
+      },
+      "ProviderKind": {
+        "type": "string",
+        "description": "How a provider is implemented (see ADR 0005).",
+        "enum": [
+          "native",
+          "definition",
+          "torznab"
+        ]
+      },
+      "ProviderOutcome": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProviderStatus"
+          },
+          {
+            "type": "object",
+            "required": [
+              "provider",
+              "latency_ms"
+            ],
+            "properties": {
+              "latency_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderId"
+              }
+            }
+          }
+        ],
+        "description": "Result of one provider in a completed search."
+      },
+      "ProviderPatch": {
+        "type": "object",
+        "description": "Changes to a provider. Absent fields are left as they are.",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "network_policy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NetworkPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Setting values to change; `null` clears one.",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProviderSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Compiled into Hashlark.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "native"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "version",
+              "links",
+              "type"
+            ],
+            "properties": {
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "repo_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Repository it came from; `null` if imported by hand."
+              },
+              "site_type": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SiteType"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "definition"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "torznab"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Where a provider comes from."
+      },
+      "ProviderStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "count",
+              "status"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error_kind",
+              "message",
+              "status"
+            ],
+            "properties": {
+              "error_kind": {
+                "$ref": "#/components/schemas/ErrorKind"
+              },
+              "message": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ProviderView": {
+        "type": "object",
+        "description": "A provider as shown to users.",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "enabled",
+          "builtin",
+          "categories",
+          "health",
+          "network_policy",
+          "source",
+          "settings"
+        ],
+        "properties": {
+          "builtin": {
+            "type": "boolean",
+            "description": "Shipped with Hashlark: can be disabled but not removed."
+          },
+          "capabilities": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Capabilities"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the provider couldn't be loaded (e.g. an invalid definition)."
+          },
+          "health": {
+            "$ref": "#/components/schemas/HealthSummary"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProviderKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "network_policy": {
+            "$ref": "#/components/schemas/NetworkPolicy"
+          },
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettingView"
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/ProviderSource"
+          }
+        }
+      },
+      "RefreshTrackersResponse": {
+        "type": "object",
+        "required": [
+          "fetched"
+        ],
+        "properties": {
+          "fetched": {
+            "type": "integer",
+            "description": "Trackers fetched from the list URL.",
+            "minimum": 0
+          }
+        }
+      },
+      "RepoView": {
+        "type": "object",
+        "description": "A definition repository as shown to users.",
+        "required": [
+          "id",
+          "url",
+          "definitions",
+          "builtin"
+        ],
+        "properties": {
+          "builtin": {
+            "type": "boolean",
+            "description": "Shipped with Hashlark; can't be removed."
+          },
+          "definitions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short form of the pinned signing key."
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_sync_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix ms."
+          },
+          "last_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolveRequest": {
+        "type": "object",
+        "required": [
+          "result_id"
+        ],
+        "properties": {
+          "prefer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TargetKind",
+                "description": "Ask for a magnet or a `.torrent` when the result allows it."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Route": {
+        "type": "string",
+        "description": "How a provider's traffic is routed.",
+        "enum": [
+          "default",
+          "direct",
+          "proxy",
+          "tor"
+        ]
+      },
+      "SearchEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "provider",
+              "event"
+            ],
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "provider_started"
+                ]
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "New or updated merged results. An item whose `id` was sent before\nreplaces the earlier version.",
+            "required": [
+              "provider",
+              "items",
+              "event"
+            ],
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "results"
+                ]
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MergedResult"
+                }
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "provider",
+              "count",
+              "latency_ms",
+              "event"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "provider_finished"
+                ]
+              },
+              "latency_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "provider",
+              "error_kind",
+              "message",
+              "latency_ms",
+              "event"
+            ],
+            "properties": {
+              "error_kind": {
+                "$ref": "#/components/schemas/ErrorKind"
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "provider_failed"
+                ]
+              },
+              "latency_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "message": {
+                "type": "string"
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderId"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "total",
+              "duration_ms",
+              "event"
+            ],
+            "properties": {
+              "duration_ms": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "event": {
+                "type": "string",
+                "enum": [
+                  "done"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ],
+        "description": "Progress of a running search, in the order it happens. Front ends render\nthese as they arrive; the HTTP API forwards them as SSE events."
+      },
+      "SearchOutcome": {
+        "type": "object",
+        "description": "A completed search: sorted results plus how each provider did.",
+        "required": [
+          "results",
+          "providers",
+          "duration_ms"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderOutcome"
+            }
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MergedResult"
+            }
+          }
+        }
+      },
+      "SearchQuery": {
+        "type": "object",
+        "description": "A search request.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "description": "Empty means all categories."
+          },
+          "imdb_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based page number.",
+            "minimum": 0
+          },
+          "providers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ProviderId"
+            },
+            "description": "`None` means every enabled provider."
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortOrder"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "description": "One result as returned by one provider.",
+        "required": [
+          "title",
+          "provider_id"
+        ],
+        "properties": {
+          "category": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "details_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "info_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leechers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "magnet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "needs_resolve": {
+            "type": "boolean",
+            "description": "The download link is only available after [`resolve`] (e.g. it is on\nthe provider's details page).\n\n[`resolve`]: crate::provider::SearchProvider::resolve"
+          },
+          "provider_id": {
+            "$ref": "#/components/schemas/ProviderId"
+          },
+          "published": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "seeders": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "torrent_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SearchSettings": {
+        "type": "object",
+        "properties": {
+          "cache_ttl_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How long identical searches are served from cache, in seconds. 0 disables caching.",
+            "default": 600,
+            "minimum": 0
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "description": "Maximum providers searched at once.",
+            "default": 16,
+            "minimum": 0
+          },
+          "provider_timeout_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How long one provider may take, in seconds.",
+            "default": 10,
+            "minimum": 0
+          },
+          "save_history": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "description": "Cookies from a browser check the user completed on the site.",
+        "required": [
+          "url",
+          "cookies"
+        ],
+        "properties": {
+          "cookies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionCookie"
+            }
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix ms; defaults to 24 hours from now."
+          },
+          "url": {
+            "type": "string",
+            "description": "Page the cookies belong to."
+          },
+          "user_agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The browser's user agent; challenge cookies only work with it."
+          }
+        }
+      },
+      "SessionCookie": {
+        "type": "object",
+        "description": "One cookie from a browser session.",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "SettingKind": {
+        "type": "string",
+        "enum": [
+          "text",
+          "password",
+          "checkbox",
+          "select"
+        ]
+      },
+      "SettingView": {
+        "type": "object",
+        "description": "A user-configurable setting of a provider.",
+        "required": [
+          "name",
+          "label",
+          "kind",
+          "required",
+          "options",
+          "is_set"
+        ],
+        "properties": {
+          "is_set": {
+            "type": "boolean",
+            "description": "Whether a value is stored (useful for passwords)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SettingKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Current value; always `null` for passwords."
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "description": "All user-configurable settings.",
+        "properties": {
+          "downloads": {
+            "$ref": "#/components/schemas/DownloadSettings",
+            "default": {
+              "torrent_dir": null
+            }
+          },
+          "magnets": {
+            "$ref": "#/components/schemas/MagnetSettings",
+            "default": {
+              "append_default_trackers": false,
+              "trackers_url": null
+            }
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkSettings",
+            "default": {
+              "doh": {
+                "custom_url": null,
+                "enabled": true,
+                "fallback_to_system": true,
+                "resolver": "cloudflare"
+              },
+              "per_host_rate": 1,
+              "proxy": null,
+              "tor": {
+                "enabled": false,
+                "mode": "embedded",
+                "socks_url": "socks5h://127.0.0.1:9050"
+              }
+            }
+          },
+          "search": {
+            "$ref": "#/components/schemas/SearchSettings",
+            "default": {
+              "cache_ttl_secs": 600,
+              "max_concurrency": 16,
+              "provider_timeout_secs": 10,
+              "save_history": true
+            }
+          },
+          "ui": {
+            "$ref": "#/components/schemas/UiSettings",
+            "default": {
+              "first_run_done": false,
+              "theme": "system"
+            }
+          },
+          "updates": {
+            "$ref": "#/components/schemas/UpdateSettings",
+            "default": {
+              "check_for_updates": true
+            }
+          }
+        }
+      },
+      "SiteType": {
+        "type": "string",
+        "enum": [
+          "public",
+          "semi_private",
+          "private"
+        ]
+      },
+      "SortOrder": {
+        "type": "string",
+        "description": "How the merged result list is ordered.",
+        "enum": [
+          "relevance",
+          "title",
+          "seeders",
+          "peers",
+          "size",
+          "date"
+        ]
+      },
+      "StoredDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "sha256",
+          "yaml",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "repo_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository it came from; `None` if imported by hand."
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix ms."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "yaml": {
+            "type": "string"
+          }
+        }
+      },
+      "SyncReport": {
+        "type": "object",
+        "description": "What a sync changed.",
+        "required": [
+          "added",
+          "updated",
+          "removed",
+          "unchanged",
+          "errors"
+        ],
+        "properties": {
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "New providers (added disabled, for the user to review)."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Definitions that were skipped, and why."
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TargetKind": {
+        "type": "string",
+        "description": "Which kind of [`DownloadTarget`] a caller would rather have.",
+        "enum": [
+          "magnet",
+          "torrent_file"
+        ]
+      },
+      "TestReport": {
+        "type": "object",
+        "description": "Outcome of a manual provider test.",
+        "required": [
+          "ok",
+          "result_count",
+          "latency_ms"
+        ],
+        "properties": {
+          "error_kind": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "result_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Theme": {
+        "type": "string",
+        "enum": [
+          "system",
+          "light",
+          "dark"
+        ]
+      },
+      "TorMode": {
+        "type": "string",
+        "enum": [
+          "embedded",
+          "external"
+        ]
+      },
+      "TorSettings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Route every provider through Tor.",
+            "default": false
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TorMode",
+            "description": "Use Hashlark's built-in Tor, or a Tor already running on this\ncomputer (at `socks_url`).",
+            "default": "embedded"
+          },
+          "socks_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SOCKS address of a running Tor (Tor Browser uses port 9150, the Tor\nservice and Orbot 9050).",
+            "default": "socks5h://127.0.0.1:9050"
+          }
+        }
+      },
+      "TorStatus": {
+        "type": "object",
+        "description": "State of Tor, for the UI.",
+        "required": [
+          "built_in",
+          "running",
+          "ready",
+          "progress",
+          "message"
+        ],
+        "properties": {
+          "built_in": {
+            "type": "boolean",
+            "description": "Built-in Tor is available in this build."
+          },
+          "message": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "format": "float",
+            "description": "0.0 to 1.0."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Tor can carry traffic."
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UiSettings": {
+        "type": "object",
+        "properties": {
+          "first_run_done": {
+            "type": "boolean",
+            "description": "Set once the user has finished the first-run screen.",
+            "default": false
+          },
+          "theme": {
+            "$ref": "#/components/schemas/Theme",
+            "default": "system"
+          }
+        }
+      },
+      "UpdateSettings": {
+        "type": "object",
+        "properties": {
+          "check_for_updates": {
+            "type": "boolean",
+            "description": "Check GitHub Releases for new versions.",
+            "default": true
+          }
+        }
+      },
+      "YamlText": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "search",
+      "description": "Searching and resolving downloads"
+    },
+    {
+      "name": "providers",
+      "description": "Managing indexers"
+    },
+    {
+      "name": "definitions",
+      "description": "YAML provider definitions"
+    },
+    {
+      "name": "repositories",
+      "description": "Signed definition repositories"
+    },
+    {
+      "name": "favorites"
+    },
+    {
+      "name": "api keys",
+      "description": "Keys for the headless server"
+    },
+    {
+      "name": "settings"
+    },
+    {
+      "name": "history"
+    },
+    {
+      "name": "system"
+    }
+  ]
+}

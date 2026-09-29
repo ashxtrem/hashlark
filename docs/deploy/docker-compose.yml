@@ -1,0 +1,19 @@
+# Hashlark headless server with Docker Compose.
+#   docker compose up -d
+#   docker compose logs hashlark    # the first API key is printed once
+services:
+  hashlark:
+    image: ghcr.io/ashxtrem/hashlark:latest
+    container_name: hashlark
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - hashlark-data:/data
+      # Optional: a config file (see hashlark.example.toml).
+      # - ./hashlark.toml:/data/hashlark.toml:ro
+    environment:
+      - RUST_LOG=info
+
+volumes:
+  hashlark-data:

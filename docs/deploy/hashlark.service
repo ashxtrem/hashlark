@@ -1,0 +1,31 @@
+# systemd unit for the Hashlark headless server.
+#   sudo useradd --system --home /var/lib/hashlark --create-home hashlark
+#   sudo cp hashlark-server /usr/local/bin/
+#   sudo cp hashlark.service /etc/systemd/system/
+#   sudo systemctl enable --now hashlark
+#   sudo journalctl -u hashlark     # shows the first API key
+[Unit]
+Description=Hashlark torrent search server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hashlark
+Group=hashlark
+Environment=HASHLARK_DATA_DIR=/var/lib/hashlark
+Environment=HASHLARK_BIND=0.0.0.0:8787
+ExecStart=/usr/local/bin/hashlark-server
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/hashlark
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

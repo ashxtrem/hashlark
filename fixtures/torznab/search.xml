@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A Jackett-style Torznab response (hand-written, public-domain titles). -->
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <atom:link href="http://127.0.0.1:9117/api" rel="self" type="application/rss+xml" />
+    <title>AggregateSearch</title>
+    <item>
+      <title>Big Buck Bunny 1080p</title>
+      <guid>http://127.0.0.1:9117/details/1</guid>
+      <jackettindexer id="example">Example</jackettindexer>
+      <comments>http://127.0.0.1:9117/details/1</comments>
+      <pubDate>Mon, 14 Sep 2026 10:00:00 +0000</pubDate>
+      <size>725106140</size>
+      <link>magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&amp;dn=Big+Buck+Bunny</link>
+      <category>2000</category>
+      <category>100001</category>
+      <enclosure url="magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&amp;dn=Big+Buck+Bunny" length="725106140" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="seeders" value="120" />
+      <torznab:attr name="peers" value="150" />
+      <torznab:attr name="infohash" value="dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c" />
+      <torznab:attr name="magneturl" value="magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&amp;dn=Big+Buck+Bunny" />
+    </item>
+    <item>
+      <title>Night of the Living Dead S01E01</title>
+      <guid>http://127.0.0.1:9117/details/2</guid>
+      <pubDate>Tue, 15 Sep 2026 10:00:00 +0000</pubDate>
+      <link>http://127.0.0.1:9117/dl/2</link>
+      <enclosure url="http://127.0.0.1:9117/dl/2" length="1073741824" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="5030" />
+      <torznab:attr name="seeders" value="5" />
+      <torznab:attr name="peers" value="5" />
+    </item>
+  </channel>
+</rss>

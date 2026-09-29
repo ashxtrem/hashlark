@@ -1,0 +1,38 @@
+schema: 1
+id: 1337x
+name: 1337x
+description: General public tracker (Cloudflare browser check)
+language: en
+version: 1
+links:
+  - https://1337x.to/
+  - https://1337x.st/
+  - https://x1337x.ws/
+caps:
+  paging:
+    start: 1
+search:
+  path: "search/{{ query.text | urlencode }}/{{ query.page }}/"
+  response: html
+  rows: "table.table-list tbody tr"
+  fields:
+    title:
+      selector: "td.coll-1 a[href^='/torrent/']"
+    details:
+      selector: "td.coll-1 a[href^='/torrent/']"
+      attr: href
+    size:
+      selector: "td.coll-4"
+      filters:
+        - regex: "([0-9.,]+\\s*[KMGT]i?B)"
+    seeders:
+      selector: "td.coll-2"
+    leechers:
+      selector: "td.coll-3"
+    date:
+      selector: "td.coll-date"
+      optional: true
+download:
+  selector: "a[href^='magnet:']"
+test:
+  query: ubuntu

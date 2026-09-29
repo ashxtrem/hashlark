@@ -1,0 +1,44 @@
+schema: 1
+id: yts
+name: YTS
+description: Movies, small encodes (first listed quality per movie)
+language: en
+version: 1
+links:
+  - https://movies-api.accel.li/
+  - https://yts.lt/
+caps:
+  categories:
+    movies: movies
+  paging:
+    start: 1
+search:
+  path: api/v2/list_movies.json
+  params:
+    query_term: "{{ query.text }}"
+    limit: "50"
+    page: "{{ query.page }}"
+  response: json
+  rows: "$.data.movies[*]"
+  fields:
+    title:
+      path: "$.title_long"
+    details:
+      path: "$.url"
+      optional: true
+    info_hash:
+      path: "$.torrents[0].hash"
+    size:
+      path: "$.torrents[0].size_bytes"
+      optional: true
+    seeders:
+      path: "$.torrents[0].seeds"
+      optional: true
+    leechers:
+      path: "$.torrents[0].peers"
+      optional: true
+    date:
+      path: "$.date_uploaded_unix"
+      optional: true
+test:
+  query: matrix

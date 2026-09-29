@@ -1,0 +1,32 @@
+# Hashlark headless server configuration.
+# Copy to <data dir>/hashlark.toml (or pass --config <file>).
+# Command-line flags and HASHLARK_* environment variables override these.
+
+# Address to listen on. 127.0.0.1 keeps it on this machine; use 0.0.0.0 to
+# reach it from your network (then set up TLS, or put it behind a reverse
+# proxy that terminates TLS).
+bind = "0.0.0.0:8787"
+
+# Where the database and secrets live. Default: the OS app-data folder
+# (/data in the Docker image).
+# data_dir = "/var/lib/hashlark"
+
+# Credentials for providers: "file" (a secrets.json readable only by the
+# server's user) or "keychain" (the OS keychain, where one exists).
+secrets = "file"
+
+# Serve the web UI at / (default true).
+# web_ui = true
+
+# Extra browser origins allowed to call the API (only for UIs hosted elsewhere).
+# cors_origins = ["https://hashlark.example.org"]
+
+# Load and live-reload provider definitions from a folder (for writing them).
+# definitions_dir = "/definitions"
+
+# log = "info"
+
+# Serve HTTPS directly:
+# [tls]
+# cert = "/etc/hashlark/fullchain.pem"
+# key = "/etc/hashlark/privkey.pem"

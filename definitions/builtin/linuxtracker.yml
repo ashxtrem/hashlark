@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+schema: 1
+id: linuxtracker
+name: Linuxtracker
+description: Linux and BSD distribution images
+language: en
+version: 1
+links:
+  - https://linuxtracker.org/
+caps:
+  categories:
+    software: "0"
+search:
+  path: index.php
+  params:
+    page: torrents
+    search: "{{ query.text }}"
+  response: html
+  # Header rows have no torrent link and are skipped.
+  rows: "tr"
+  fields:
+    title:
+      selector: "a.torrent-name"
+    details:
+      selector: "a.torrent-name"
+      attr: href
+    info_hash:
+      selector: "a.torrent-name"
+      attr: href
+      filters:
+        - regex: "/torrents/([0-9a-fA-F]{40})"
+    date:
+      selector: "td:nth-child(3)"
+      optional: true
+    size:
+      selector: "td:nth-child(4)"
+    seeders:
+      selector: "td.seeds"
+    leechers:
+      selector: "td.leeches"
+test:
+  query: ubuntu

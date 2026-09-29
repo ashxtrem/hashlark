@@ -1,0 +1,1504 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem("linuxtracker-theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme =
+          saved || (systemDark ? "dark" : "light");
+      } catch (_) {
+        document.documentElement.dataset.theme = "light";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const button = document.querySelector(".theme-toggle");
+        if (!button) return;
+
+        const updateButton = () => {
+          const dark = document.documentElement.dataset.theme === "dark";
+          button.textContent = dark ? "☀" : "☾";
+          button.setAttribute(
+            "aria-label",
+            dark ? "Switch to light mode" : "Switch to dark mode"
+          );
+          button.setAttribute(
+            "title",
+            dark ? "Switch to light mode" : "Switch to dark mode"
+          );
+        };
+
+        updateButton();
+
+        button.addEventListener("click", () => {
+          const next =
+            document.documentElement.dataset.theme === "dark"
+              ? "light"
+              : "dark";
+
+          document.documentElement.dataset.theme = next;
+
+          try {
+            localStorage.setItem("linuxtracker-theme", next);
+          } catch (_) {}
+
+          updateButton();
+        });
+      });
+    })();
+  </script>
+  <!-- Google tag consent defaults -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+
+    (() => {
+      let analyticsConsent = "denied";
+
+      try {
+        if (
+          localStorage.getItem("linuxtracker-analytics-consent") === "granted"
+        ) {
+          analyticsConsent = "granted";
+        }
+      } catch (_) {}
+
+      gtag("consent", "default", {
+        analytics_storage: analyticsConsent,
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied",
+        wait_for_update: 500
+      });
+    })();
+
+    gtag("js", new Date());
+    gtag("config", "G-W6N12K4D4Q");
+  </script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-W6N12K4D4Q"></script>
+
+  <title>Torrents - LinuxTracker</title>
+  <link rel="stylesheet" href="/static/css/site.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/content.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/torrents.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/torrent-actions.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/torrent-manage.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/top-torrents.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/statistics.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/info-pages.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/news.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/chat.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/accounts.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/account-detail.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/email-verification.css?v=20260923-1">
+  <link rel="stylesheet" href="/static/css/mfa.css?v=20260923-1">
+  <link rel="icon" href="/static/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  
+</head>
+<body>
+
+<header class="site-header">
+  <div class="topbar shell">
+    <a class="brand" href="/">
+  <img
+    class="brand-badge"
+    src="/static/img/branding/linuxtracker-badge.png"
+    alt=""
+    width="62"
+    height="62"
+  >
+  <span class="brand-copy">
+    <span class="brand-name">Linux<span>Tracker</span></span>
+    <small>LINUX DISTRIBUTIONS. TOGETHER.</small>
+  </span>
+</a>
+    <form class="search" role="search" method="get" action="/torrents/">
+      <input type="search" name="q" placeholder="Search torrents..." aria-label="Search torrents">
+      <button type="submit">Search</button>
+    </form>
+    <div class="account">
+      <button
+        class="theme-toggle"
+        type="button"
+        aria-label="Switch color theme"
+        title="Switch color theme"
+      >☾</button>
+      
+      <a href="/accounts/login/">Login</a>
+      <a href="/accounts/register/">Register</a>
+      
+    </div>
+  </div>
+
+  <nav class="nav" aria-label="Primary navigation">
+    <div class="shell nav-inner">
+      <a href="/">Home</a>
+      <a class="active" aria-current="page" href="/torrents/">Torrents</a>
+      <a href="/torrents/top/">Top Torrents</a>
+      
+      <a href="/statistics/">Statistics</a>
+      <a href="/news/">News</a>
+      
+      <a href="https://rss.linuxtracker.org/feed.xml">RSS Feed</a>
+      
+      <a href="/chat/">Chat</a>
+      
+    </div>
+  </nav>
+</header>
+
+<main class="shell">
+<section class="panel torrent-list-panel">
+  <header class="section-header">
+    <div>
+      <h2>Torrents</h2>
+      <p>Browse Linux distribution torrents available through LinuxTracker.</p>
+    </div>
+    
+  </header>
+
+  <form method="get" class="torrent-filters">
+    <div class="filter-field filter-search">
+      <label for="torrent-search">Search</label>
+      <input id="torrent-search" type="search" name="q" value="ubuntu" placeholder="Name or release...">
+    </div>
+    <div class="filter-field">
+      <label for="torrent-category">Category</label>
+      <select id="torrent-category" name="category">
+        <option value="">All categories</option>
+        
+        <option value="2002">4MLinux</option>
+        
+        <option value="13">Absolute</option>
+        
+        <option value="2311">AlmaLinux</option>
+        
+        <option value="2003">Alpine Linux</option>
+        
+        <option value="2004">ALT Linux</option>
+        
+        <option value="2292">Anarchy Linux</option>
+        
+        <option value="2005">Android x86</option>
+        
+        <option value="2006">Antergos</option>
+        
+        <option value="2263">Antivirus Live CD</option>
+        
+        <option value="2007">AntiX</option>
+        
+        <option value="2289">APODIO</option>
+        
+        <option value="39">Arch Linux</option>
+        
+        <option value="2009">Archbang</option>
+        
+        <option value="2212">ArchLabs</option>
+        
+        <option value="2183">Archman</option>
+        
+        <option value="2196">ArcoLinux</option>
+        
+        <option value="2216">Artix Linux</option>
+        
+        <option value="2227">AryaLinux</option>
+        
+        <option value="2288">Audiophile Linux</option>
+        
+        <option value="56">Austrumi</option>
+        
+        <option value="2012">AV Linux</option>
+        
+        <option value="1231">Backbox</option>
+        
+        <option value="2219">BackSlash Linux</option>
+        
+        <option value="2237">Batocera Linux</option>
+        
+        <option value="2252">BBQLinux</option>
+        
+        <option value="2272">BeeFree OS</option>
+        
+        <option value="2017">Berry Linux</option>
+        
+        <option value="2301">Berserk Arch</option>
+        
+        <option value="2243">BicomSystems PBXware</option>
+        
+        <option value="2275">BigLinux</option>
+        
+        <option value="2286">BitKey</option>
+        
+        <option value="2020">BlackArch</option>
+        
+        <option value="2283">Blackhat-Global OS</option>
+        
+        <option value="2021">Blacklab</option>
+        
+        <option value="1238">BlackPanther OS</option>
+        
+        <option value="2262">BlackWeb</option>
+        
+        <option value="2022">Blag</option>
+        
+        <option value="79">BlankOn</option>
+        
+        <option value="2182">Bluestar Linux</option>
+        
+        <option value="2309">Blunux</option>
+        
+        <option value="2023">Bodhi</option>
+        
+        <option value="2260">BSD Router Project</option>
+        
+        <option value="2205">BunsenLabs</option>
+        
+        <option value="2026">Cae</option>
+        
+        <option value="1220">Caine</option>
+        
+        <option value="2028">Calculate Linux</option>
+        
+        <option value="102">CentOS</option>
+        
+        <option value="1216">Chakra</option>
+        
+        <option value="2033">Chapeau</option>
+        
+        <option value="2253">Clear Linux</option>
+        
+        <option value="2264">ClearOS</option>
+        
+        <option value="107">Clonezilla</option>
+        
+        <option value="2248">ClonOS</option>
+        
+        <option value="2257">Condres OS</option>
+        
+        <option value="2036">Connochaet</option>
+        
+        <option value="2037">Container Linux</option>
+        
+        <option value="121">Crunchbang</option>
+        
+        <option value="122">Crux</option>
+        
+        <option value="2273">Cryptocurrency OS</option>
+        
+        <option value="2245">Cucumber Linux</option>
+        
+        <option value="123">Damnsmall</option>
+        
+        <option value="128">Debian</option>
+        
+        <option value="131">Deepin</option>
+        
+        <option value="2038">Deft</option>
+        
+        <option value="2192">Devuan</option>
+        
+        <option value="2306">DietPi</option>
+        
+        <option value="2287">Doge Linux</option>
+        
+        <option value="2308">Dr.Parted Live</option>
+        
+        <option value="144">DragonFly BSD</option>
+        
+        <option value="2215">Dragora GNU/Linux</option>
+        
+        <option value="2307">Drauger OS</option>
+        
+        <option value="2285">DRBL Live</option>
+        
+        <option value="2226">DuZeru OS</option>
+        
+        <option value="148">Dynebolic</option>
+        
+        <option value="2261">Eagle Mode</option>
+        
+        <option value="2265">EasyNAS</option>
+        
+        <option value="2259">EasyOS</option>
+        
+        <option value="155">Edubuntu</option>
+        
+        <option value="2040">Elastix</option>
+        
+        <option value="2041">Elementary OS</option>
+        
+        <option value="161">Elive</option>
+        
+        <option value="2042">Emmabuntus</option>
+        
+        <option value="2231">Emmi OS</option>
+        
+        <option value="2278">EndeavourOS</option>
+        
+        <option value="164">Endian</option>
+        
+        <option value="2179">Endless OS</option>
+        
+        <option value="2310">EnigmarsOS</option>
+        
+        <option value="2223">Enso OS</option>
+        
+        <option value="2043">Exe GNU/Linux</option>
+        
+        <option value="2045">Extix</option>
+        
+        <option value="2220">Fatdog64 Linux</option>
+        
+        <option value="178">Fedora</option>
+        
+        <option value="2194">Feren OS</option>
+        
+        <option value="181">Finnix</option>
+        
+        <option value="2266">Forensic Hard Copy</option>
+        
+        <option value="190">FreeBSD</option>
+        
+        <option value="197">Freespire</option>
+        
+        <option value="1210">Fuduntu</option>
+        
+        <option value="2046">FuguIta</option>
+        
+        <option value="2290">FuryBSD</option>
+        
+        <option value="2256">G4L</option>
+        
+        <option value="2235">GALPon MiniNo</option>
+        
+        <option value="2299">Garuda Linux</option>
+        
+        <option value="2214">GeckoLinux</option>
+        
+        <option value="203">GeeXboX</option>
+        
+        <option value="206">Gentoo</option>
+        
+        <option value="2048">GhostBSD</option>
+        
+        <option value="210">Gnewsense</option>
+        
+        <option value="216">GoboLinux</option>
+        
+        <option value="1212">GParted</option>
+        
+        <option value="220">Greenie Linux</option>
+        
+        <option value="221">Grml</option>
+        
+        <option value="2280">GroovyArcade</option>
+        
+        <option value="2228">Guix System</option>
+        
+        <option value="2049">Haiku</option>
+        
+        <option value="2050">Handy</option>
+        
+        <option value="2276">Hanthana Linux</option>
+        
+        <option value="2186">HardenedBSD</option>
+        
+        <option value="2200">Heads</option>
+        
+        <option value="2293">Hiren&#x27;s BootCD+PE</option>
+        
+        <option value="2166">Huayra Linux</option>
+        
+        <option value="2244">Hyperbola GNU</option>
+        
+        <option value="252">IPFire</option>
+        
+        <option value="2294">Kaisen Linux</option>
+        
+        <option value="2051">Kali</option>
+        
+        <option value="2052">KaOS</option>
+        
+        <option value="2053">Karoshi</option>
+        
+        <option value="2181">KDE Neon</option>
+        
+        <option value="277">Knoppix</option>
+        
+        <option value="2054">Kolibri</option>
+        
+        <option value="287">Kubuntu</option>
+        
+        <option value="2057">Kwort Linux</option>
+        
+        <option value="2058">Kxstudio</option>
+        
+        <option value="2258">Lakka</option>
+        
+        <option value="2176">LibreELEC</option>
+        
+        <option value="2061">LinHES</option>
+        
+        <option value="2242">Linspire</option>
+        
+        <option value="311">Linux</option>
+        
+        <option value="2239">Linux Kodachi</option>
+        
+        <option value="1234">Linux Lite</option>
+        
+        <option value="347">Linux Mint</option>
+        
+        <option value="304">LinuxConsole</option>
+        
+        <option value="2063">Linuxfx</option>
+        
+        <option value="2064">Liquid Lemur</option>
+        
+        <option value="2191">Live Raizo</option>
+        
+        <option value="316">Livecd</option>
+        
+        <option value="1218">Lubuntu</option>
+        
+        <option value="2068">LXLE</option>
+        
+        <option value="2296">Mabox Linux</option>
+        
+        <option value="1228">Mageia</option>
+        
+        <option value="2071">MakuluLinux</option>
+        
+        <option value="2073">Manjaro</option>
+        
+        <option value="343">MidnightBSD</option>
+        
+        <option value="2075">Minino</option>
+        
+        <option value="2076">Minix</option>
+        
+        <option value="2300">MocaccinoOS</option>
+        
+        <option value="2163">MOFO Linux</option>
+        
+        <option value="2241">MorpheusArch Linux</option>
+        
+        <option value="369">Musix</option>
+        
+        <option value="2177">MX Linux</option>
+        
+        <option value="373">Mythbuntu</option>
+        
+        <option value="2302">NakeDeb</option>
+        
+        <option value="2217">Namib GNU/Linux</option>
+        
+        <option value="2078">NAS4Free</option>
+        
+        <option value="2079">Neptune</option>
+        
+        <option value="380">NetBSD</option>
+        
+        <option value="2080">Nethserver</option>
+        
+        <option value="2081">Netrunner</option>
+        
+        <option value="2190">Nitrux</option>
+        
+        <option value="2084">NixOS</option>
+        
+        <option value="2254">NomadBSD</option>
+        
+        <option value="391">Nst</option>
+        
+        <option value="2086">Nutyx</option>
+        
+        <option value="2240">Obarun</option>
+        
+        <option value="2211">Omarine</option>
+        
+        <option value="401">OpenBSD</option>
+        
+        <option value="2089">Openelec</option>
+        
+        <option value="2090">OpenIndiana</option>
+        
+        <option value="2091">OpenMandriva Lx</option>
+        
+        <option value="2092">Openmediavault</option>
+        
+        <option value="2093">Opensuse</option>
+        
+        <option value="2203">OPNsense</option>
+        
+        <option value="1237">Oracle Linux</option>
+        
+        <option value="2234">OSGeoLive</option>
+        
+        <option value="2096">OSMC</option>
+        
+        <option value="2218">OviOS Linux</option>
+        
+        <option value="416">Paldo</option>
+        
+        <option value="2098">Parabola GNU/Linux</option>
+        
+        <option value="419">Pardus</option>
+        
+        <option value="2162">Parrot</option>
+        
+        <option value="420">Parsix</option>
+        
+        <option value="421">Partedmagic</option>
+        
+        <option value="422">Pcbsd</option>
+        
+        <option value="423">PCLinuxOS</option>
+        
+        <option value="429">Pentoo</option>
+        
+        <option value="430">Peppermint</option>
+        
+        <option value="432">Pfsense</option>
+        
+        <option value="2233">PI MusicBox</option>
+        
+        <option value="2101">Pinguy OS</option>
+        
+        <option value="2102">Pisi Linux</option>
+        
+        <option value="441">Plamo Linux</option>
+        
+        <option value="2103">Plop</option>
+        
+        <option value="1235">Point Linux</option>
+        
+        <option value="2207">Pop!_OS</option>
+        
+        <option value="2106">Porteus</option>
+        
+        <option value="2107">Porteus Kiosk</option>
+        
+        <option value="2209">PrimTux</option>
+        
+        <option value="2247">Project Trident</option>
+        
+        <option value="1230">Proxmox</option>
+        
+        <option value="452">Puppy</option>
+        
+        <option value="2221">PureOS</option>
+        
+        <option value="2108">Q4OS</option>
+        
+        <option value="2109">Qubes</option>
+        
+        <option value="455">Quirky</option>
+        
+        <option value="2180">RancherOS</option>
+        
+        <option value="2201">Raspberry Digital</option>
+        
+        <option value="2199">Raspberry Slideshow</option>
+        
+        <option value="2110">Raspbian</option>
+        
+        <option value="2111">Reactos</option>
+        
+        <option value="2232">RebeccaBlackOS</option>
+        
+        <option value="2112">Rebellin</option>
+        
+        <option value="2236">Reborn OS</option>
+        
+        <option value="2274">Redcore Linux</option>
+        
+        <option value="458">Redhat</option>
+        
+        <option value="2202">Refracta</option>
+        
+        <option value="2291">RegataOS</option>
+        
+        <option value="2114">Rescatux</option>
+        
+        <option value="2305">Rescuezilla</option>
+        
+        <option value="2270">Resilient Linux</option>
+        
+        <option value="2116">Robolinux</option>
+        
+        <option value="1223">Rosa</option>
+        
+        <option value="2117">Runtu</option>
+        
+        <option value="14">Sabayon</option>
+        
+        <option value="2118">Salentos</option>
+        
+        <option value="477">Salix</option>
+        
+        <option value="482">Scientific Linux</option>
+        
+        <option value="2304">Security Onion</option>
+        
+        <option value="2119">SELKS</option>
+        
+        <option value="2250">Septor</option>
+        
+        <option value="489">SharkLinux</option>
+        
+        <option value="2121">Siduction</option>
+        
+        <option value="2122">Simplicity Linux</option>
+        
+        <option value="2164">Skywave Linux</option>
+        
+        <option value="493">Slackel</option>
+        
+        <option value="495">Slackware</option>
+        
+        <option value="499">Slax</option>
+        
+        <option value="2303">Slimbook OS</option>
+        
+        <option value="2124">SmartOS</option>
+        
+        <option value="2125">Smeserver</option>
+        
+        <option value="505">Smoothwall Express</option>
+        
+        <option value="506">Sms</option>
+        
+        <option value="2126">Solus</option>
+        
+        <option value="2127">Solydxk</option>
+        
+        <option value="1236">SparkyLinux</option>
+        
+        <option value="2297">SpiralLinux</option>
+        
+        <option value="2225">Star</option>
+        
+        <option value="2132">Steamos</option>
+        
+        <option value="2174">Super Grub2 Disk</option>
+        
+        <option value="2134">SuperX</option>
+        
+        <option value="2189">SwagArch</option>
+        
+        <option value="2267">Symphony OS</option>
+        
+        <option value="2295">SysLinuxOS</option>
+        
+        <option value="2135">SystemRescueCD</option>
+        
+        <option value="2136">Tails</option>
+        
+        <option value="2170">TalkingArch</option>
+        
+        <option value="2188">TENS</option>
+        
+        <option value="542">Thinstation</option>
+        
+        <option value="2138">Tinycore</option>
+        
+        <option value="2279">TinyPaw Linux</option>
+        
+        <option value="550">Trisquel</option>
+        
+        <option value="194">TrueNAS</option>
+        
+        <option value="2195">TrueOS</option>
+        
+        <option value="2271">Tsurugi Linux</option>
+        
+        <option value="2140">TurnKey</option>
+        
+        <option value="2206">UBOS</option>
+        
+        <option value="563">Ubuntu</option>
+        
+        <option value="2198">Ubuntu Budgie</option>
+        
+        <option value="2284">Ubuntu Cinnamon Rem</option>
+        
+        <option value="2249">Ubuntu DesktopPack</option>
+        
+        <option value="2143">Ubuntu Gnome</option>
+        
+        <option value="2144">Ubuntu Kylin</option>
+        
+        <option value="2145">Ubuntu Mate</option>
+        
+        <option value="564">Ubuntu Studio</option>
+        
+        <option value="2277">Ultimate Boot CD</option>
+        
+        <option value="569">Ultimate Edition</option>
+        
+        <option value="2222">Univention Corporate</option>
+        
+        <option value="2149">Untangle NG Firewall</option>
+        
+        <option value="2173">Uruk GNU/Linux</option>
+        
+        <option value="579">Vector</option>
+        
+        <option value="2282">Virage</option>
+        
+        <option value="2151">Void Linux</option>
+        
+        <option value="2152">Volumio</option>
+        
+        <option value="2153">Voyager Live</option>
+        
+        <option value="2154">VyOS</option>
+        
+        <option value="2298">WattOS</option>
+        
+        <option value="2281">Web Security Dojo</option>
+        
+        <option value="2246">Whonix</option>
+        
+        <option value="2155">Wifislax</option>
+        
+        <option value="2251">XigmaNAS</option>
+        
+        <option value="2229">XiVa Studio</option>
+        
+        <option value="607">Xubuntu</option>
+        
+        <option value="612">Zen</option>
+        
+        <option value="2159">Zentyal</option>
+        
+        <option value="346">Zenwalk Linux</option>
+        
+        <option value="2160">Zeroshell</option>
+        
+        <option value="2193">Zevenet</option>
+        
+        <option value="1233">Zorin</option>
+        
+        <option value="4">Other distros</option>
+        
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit">Apply</button>
+      <a href="/torrents/">Clear</a>
+    </div>
+  </form>
+
+  
+  <div class="table-wrap torrent-table-wrap">
+    <table class="torrent-table">
+      <thead>
+        <tr>
+          <th>Torrent</th>
+          <th>Category</th>
+          <th>Added</th>
+          <th class="numeric">Size</th>
+          <th class="numeric stat-col">Seeds</th>
+          <th class="numeric stat-col">Leech</th>
+          <th class="numeric stat-col">Done</th>
+        </tr>
+      </thead>
+      <tbody>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/5b1e0d988fc7a0c9e99bd852071681a59974b39f/">ubuntu-26.04.1-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 6.0 GB · Sep 24, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Sep 24, 2026</td>
+          <td class="numeric muted-cell">6.0 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+            <small>+2478 ext</small>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+            <small>+124 ext</small>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>9</strong>
+            
+            <small>+44 ext</small>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/d56d4eb5b1505e58032648122cd49479093adef4/">ubuntusway-26.04-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.5 GB · Sep 18, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Sep 18, 2026</td>
+          <td class="numeric muted-cell">2.5 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>11</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>21</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/390796f33cee8a407432f199ec06a5849d6ecce3/">ubuntu-budgie-26.10-snapshot1-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu Budgie · 3.8 GB · Jun 8, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu Budgie</span></td>
+          <td class="muted-cell">Jun 8, 2026</td>
+          <td class="numeric muted-cell">3.8 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>3</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>26</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/3a342b63a8e9bf6603c4a2d84aa7762488cdde1b/">ubuntu-26.10-snapshot1-desktop-arm64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 3.7 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">3.7 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>8</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>28</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/50928094f8c86fe3377bbdcd10191a26ab645c81/">ubuntu-26.10-snapshot1-live-server-arm64+largemem.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.9 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">2.9 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>28</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/5192dc5fa37a2274f99476174153d9bb3c31e2da/">ubuntu-26.10-snapshot1-live-server-arm64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.8 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">2.8 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>28</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/b21e77b461330f084444871a4bd9fac3924e2511/">ubuntu-26.10-snapshot1-live-server-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.7 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">2.7 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>8</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>32</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/f84e284a7fe46e575317d91ee0cf33090bfbdb46/">ubuntu-26.10-snapshot1-live-server-riscv64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 1.6 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">1.6 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>24</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/727dd7a50491c668499922cc66cf616dab854bf6/">ubuntu-26.10-snapshot1-live-server-ppc64el.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 1.5 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">1.5 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>23</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/753a7f5cec169d3732fa71dbba49107c2ba1e460/">ubuntu-26.10-snapshot1-live-server-s390x.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 729.1 MB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">729.1 MB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>23</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/eb76707558d818b480b6e3abcd33bae298489f4f/">lubuntu-26.10-snapshot1-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Lubuntu · 3.6 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Lubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">3.6 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>3</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>26</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/cfe881c30158f86fa4c701d34c339acbcab8e1ea/">kubuntu-26.10-snapshot1-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Kubuntu · 4.6 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Kubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">4.6 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>4</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>24</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/9d9f57d8a8b492ed4e25db04c8613c8c83a9e366/">edubuntu-26.10-snapshot1-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Edubuntu · 7.4 GB · Jun 7, 2026</span>
+          </td>
+          <td><span class="category-badge">Edubuntu</span></td>
+          <td class="muted-cell">Jun 7, 2026</td>
+          <td class="numeric muted-cell">7.4 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>3</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>20</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/2635ba4c8db25fab96c28d9adb47b607e28e43b6/">Ubuntu Studio 26.04 LTS (Resolute Raccoon)</a>
+            <span class="torrent-mobile-meta">Ubuntu Studio · 6.7 GB · Apr 28, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu Studio</span></td>
+          <td class="muted-cell">Apr 28, 2026</td>
+          <td class="numeric muted-cell">6.7 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>3</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>23</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/8c3e3376d945ec50487b2b49a690f4eb8af49cdf/">Kubuntu 26.04 LTS (Resolute Raccoon)</a>
+            <span class="torrent-mobile-meta">Kubuntu · 4.7 GB · Apr 24, 2026</span>
+          </td>
+          <td><span class="category-badge">Kubuntu</span></td>
+          <td class="muted-cell">Apr 24, 2026</td>
+          <td class="numeric muted-cell">4.7 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>5</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>39</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/014e45fb7cf8e0ad7cd93e6d21b9f8d86a033468/">ubuntu-26.04-snapshot3-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 6.4 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">6.4 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>10</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>2066</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/9ec3d4f24309cb6a54a60eecfd89e58d771e545b/">ubuntu-26.04-snapshot3-live-server-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.2 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">2.2 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>10</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>10887</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/4368b546e1ff76b194dc4697a01eab811f1b775e/">ubuntu-26.04-snapshot3-live-server-arm64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.3 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">2.3 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>2874</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/bbd0a071c907b77538bb6485ca533395278bf145/">ubuntu-26.04-snapshot3-live-server-arm64+largemem.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 2.3 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">2.3 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>6666</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/49cae230b50c45e12f99082bbadaca7f54ae9549/">ubuntu-26.04-snapshot3-live-server-ppc64el.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 1.5 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">1.5 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>290</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/982b314daf8c3e6a0ac3250e533e97a06a79b933/">ubuntu-26.04-snapshot3-live-server-riscv64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 1.5 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">1.5 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>2440</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/fc399543377017c7a7379994fd1188cd3a575775/">ubuntu-26.04-snapshot3-live-server-s390x.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 704.0 MB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">704.0 MB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>6</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>5407</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/916a247a5352dfa39aa59de84988c81946044b0b/">ubuntu-mini-iso-26.04-snapshot3-mini-iso-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 117.2 MB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">117.2 MB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>7</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>531</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/4ef013abfea538ae80fdf551e1474882256912d5/">ubuntustudio-26.04-snapshot3-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu Studio · 7.3 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu Studio</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">7.3 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>4</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>9873</strong>
+            
+          </td>
+        </tr>
+      
+        <tr>
+          <td class="torrent-name-cell">
+            <a class="torrent-name" href="/torrents/bfb7a72a963a48355107ee8e55b6f96ec8a39686/">ubuntu-unity-26.04-snapshot3-desktop-amd64.iso</a>
+            <span class="torrent-mobile-meta">Ubuntu · 4.0 GB · Feb 15, 2026</span>
+          </td>
+          <td><span class="category-badge">Ubuntu</span></td>
+          <td class="muted-cell">Feb 15, 2026</td>
+          <td class="numeric muted-cell">4.0 GB</td>
+          <td class="numeric seeds stat-stack">
+            <strong>9</strong>
+            
+          </td>
+          <td class="numeric leeches stat-stack">
+            <strong>0</strong>
+            
+          </td>
+          <td class="numeric stat-stack">
+            <strong>4212</strong>
+            
+          </td>
+        </tr>
+      
+      </tbody>
+    </table>
+  </div>
+
+  
+  <nav class="pagination" aria-label="Torrent pages">
+    <span class="pagination-summary">Page 1 of 6</span>
+    <div class="pagination-links">
+      
+      <a href="?q=ubuntu&category=&page=2">Next</a>
+    </div>
+  </nav>
+  
+  
+</section>
+</main>
+
+<footer>
+  <div class="shell">
+    © LinuxTracker.org
+    <span class="footer-tagline">Linux distributions. Together.</span>
+    <span class="site-version" title="LinuxTracker application version">v0.9.0</span>
+    <nav aria-label="Footer navigation">
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/rules/">Rules</a>
+      <a href="/privacy/">Privacy</a>
+      <button class="cookie-settings-link" type="button">Cookie settings</button>
+    <a href="/contact/">Contact</a>
+    </nav>
+  </div>
+</footer>
+<section
+  class="cookie-consent"
+  id="cookie-consent-banner"
+  aria-label="Analytics cookie preferences"
+  aria-live="polite"
+  hidden
+>
+  <div class="cookie-consent-inner shell">
+    <div class="cookie-consent-copy">
+      <strong>Analytics preferences</strong>
+      <p>
+        LinuxTracker uses Google Analytics to understand how the site is used.
+        Analytics storage is disabled unless you choose to allow it.
+        <a href="/privacy/">Privacy policy</a>
+      </p>
+    </div>
+
+    <div class="cookie-consent-actions">
+      <button class="cookie-consent-reject" type="button">
+        Reject analytics
+      </button>
+      <button class="cookie-consent-accept" type="button">
+        Accept analytics
+      </button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const storageKey = "linuxtracker-analytics-consent";
+
+    const readConsent = () => {
+      try {
+        return localStorage.getItem(storageKey);
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const saveConsent = (value) => {
+      try {
+        localStorage.setItem(storageKey, value);
+      } catch (_) {}
+    };
+
+    const updateGoogleConsent = (analyticsConsent) => {
+      if (typeof gtag !== "function") return;
+
+      gtag("consent", "update", {
+        analytics_storage: analyticsConsent,
+        ad_storage: "denied",
+        ad_user_data: "denied",
+        ad_personalization: "denied"
+      });
+    };
+
+    const banner = document.getElementById("cookie-consent-banner");
+    const acceptButton = banner?.querySelector(".cookie-consent-accept");
+    const rejectButton = banner?.querySelector(".cookie-consent-reject");
+    const settingsButtons = document.querySelectorAll(
+      ".cookie-settings-link"
+    );
+
+    const showBanner = () => {
+      if (!banner) return;
+      banner.hidden = false;
+    };
+
+    const hideBanner = () => {
+      if (!banner) return;
+      banner.hidden = true;
+    };
+
+    const chooseConsent = (value) => {
+      saveConsent(value);
+      updateGoogleConsent(value);
+      hideBanner();
+    };
+
+    acceptButton?.addEventListener("click", () => {
+      chooseConsent("granted");
+    });
+
+    rejectButton?.addEventListener("click", () => {
+      chooseConsent("denied");
+    });
+
+    settingsButtons.forEach((button) => {
+      button.addEventListener("click", showBanner);
+    });
+
+    if (!["granted", "denied"].includes(readConsent())) {
+      showBanner();
+    }
+  })();
+</script>
+
+
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a424c1551c8b0d93',t:'MTc5MDYxOTU1NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

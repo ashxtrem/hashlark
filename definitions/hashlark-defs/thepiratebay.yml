@@ -1,0 +1,46 @@
+schema: 1
+id: thepiratebay
+name: The Pirate Bay
+description: General public tracker, searched through the apibay.org JSON API
+language: en
+version: 1
+links:
+  - https://apibay.org/
+caps:
+  categories:
+    music: "100"
+    movies: "201,207,211"
+    tv: "205,208"
+    software: "300"
+    games: "400"
+    books: "601"
+    other: "600"
+search:
+  path: q.php
+  params:
+    q: "{{ query.text }}"
+    cat: "{{ query.site_categories | join(',') }}"
+  response: json
+  rows: "$[*]"
+  # Drops the placeholder "No results returned" row the API sends on no match.
+  client_filter: true
+  fields:
+    title:
+      path: "$.name"
+    details:
+      path: "$.id"
+      filters:
+        - prepend: "https://thepiratebay.org/description.php?id="
+    info_hash:
+      path: "$.info_hash"
+    size:
+      path: "$.size"
+    seeders:
+      path: "$.seeders"
+    leechers:
+      path: "$.leechers"
+    date:
+      path: "$.added"
+      optional: true
+test:
+  query: ubuntu

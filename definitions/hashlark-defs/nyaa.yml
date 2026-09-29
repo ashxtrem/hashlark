@@ -1,0 +1,46 @@
+schema: 1
+id: nyaa
+name: Nyaa
+description: Anime, manga, Japanese music and games
+language: en
+version: 1
+links:
+  - https://nyaa.si/
+caps:
+  categories:
+    anime: "1_0"
+    music: "2_0"
+    books: "3_0"
+    software: "6_1"
+    games: "6_2"
+search:
+  path: /
+  params:
+    page: rss
+    q: "{{ query.text }}"
+    # Nyaa accepts a single category; 0_0 means all.
+    c: "{{ query.site_categories | first | default('0_0') }}"
+    f: "0"
+  response: xml
+  rows: "//item"
+  fields:
+    title:
+      path: title
+    details:
+      path: guid
+      optional: true
+    download:
+      path: link
+    info_hash:
+      path: "nyaa:infoHash"
+    size:
+      path: "nyaa:size"
+    seeders:
+      path: "nyaa:seeders"
+    leechers:
+      path: "nyaa:leechers"
+    date:
+      path: pubDate
+      optional: true
+test:
+  query: naruto

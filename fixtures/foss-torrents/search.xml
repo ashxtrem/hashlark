@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>FOSS Torrents - RSS Feed for Torrent Files </title>
+        <atom:link href="https://fosstorrents.com/feed/torrents.xml" rel="self" type="application/rss+xml"/>
+        <link>https://fosstorrents.com/feed/torrents.xml</link>
+        <description>This RSS Feed is designed be imported into qBittorrent and similar software that support RSS Feeds. This will allow your software to automatically fetch new torrents and remove old ones. Perfect for those Super Seeders out there.</description>
+        <language>en-CA</language>
+        <copyright>(c) 2026 FOSS Torrents </copyright>
+        <pubDate>Sun, 27 Sep 2026 22:11:36 -0300</pubDate>
+        <lastBuildDate>Sun, 27 Sep 2026 22:11:36 -0300</lastBuildDate>
+        <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
+        <ttl>30</ttl>
+        <item>
+            <title>0 A.D. 0.28.0 - Windows (x86_64)</title>
+            <description>Torrent for 0ad - Windows (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-win32.exe.torrent</link>
+            <guid isPermaLink="false">f279221e11f0bb27e87dddecc18a5303f920b0a4b19ff5aae0be1b2bf0409d7b</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - macOS (aarch64)</title>
+            <description>Torrent for 0ad - macOS (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-macos-aarch64.dmg.torrent</link>
+            <guid isPermaLink="false">fa375a9c7737cef3145285ac00bc5f60f4006e25a97ee4a94f991a8153ef22b9</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - macOS (amd64)</title>
+            <description>Torrent for 0ad - macOS (amd64)</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-macos-x86_64.dmg.torrent</link>
+            <guid isPermaLink="false">e2847fe3b5311bc8888cf2b9ff47c64e0726c654deb067279a41912254f86e1a</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - Unix - Build (tar.gz) ()</title>
+            <description>Torrent for 0ad - Unix - Build (tar.gz) ()</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-unix-build.tar.gz.torrent</link>
+            <guid isPermaLink="false">dbb83c97f5a2020fb1f1292719e669bdbbe92cd2599fe99fa16309c223487bd8</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - Unix - Build (tar.xz) ()</title>
+            <description>Torrent for 0ad - Unix - Build (tar.xz) ()</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-unix-build.tar.xz.torrent</link>
+            <guid isPermaLink="false">4f2ef6592b9b7fdcb6e21333c629b1a4b495b245b42cdc61e0cf72972628a597</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - Unix - Data (tar.gz) ()</title>
+            <description>Torrent for 0ad - Unix - Data (tar.gz) ()</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-unix-data.tar.gz.torrent</link>
+            <guid isPermaLink="false">8c21f9f72356d6f3a857486c71b6f67ebde5ed623881aa050cb607b5e1913a85</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>0 A.D. 0.28.0 - Unix - Data (tar.xz) ()</title>
+            <description>Torrent for 0ad - Unix - Data (tar.xz) ()</description>
+            <link>https://fosstorrents.com/direct-files/0ad-0.28.0-unix-data.tar.xz.torrent</link>
+            <guid isPermaLink="false">13b70188e48e293ee02e3c0a36ec94d3762656219ae17c73a0ea1cae7c9355a8</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AerynOS 2026.08 - Live Installer (x86_64)</title>
+            <description>Torrent for aerynos - Live Installer (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/AerynOS-2026.08-GNOME-live-x86_64.iso.torrent</link>
+            <guid isPermaLink="false">44d464c37f4ccf6dac97b94c238ddddc5d4c213a4afe48a92c330870f52e5ae1</guid>
+            <pubDate>Mon, 3 Aug 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 8.10 - AlmaLinux (aarch64)</title>
+            <description>Torrent for almalinux - AlmaLinux (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-8.10-aarch64.torrent</link>
+            <guid isPermaLink="false">5373dc891f49bf6123ed7cc798115682400e53f519b7d491ef95f17052e3b3f6</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 8.10 - AlmaLinux (ppc64le)</title>
+            <description>Torrent for almalinux - AlmaLinux (ppc64le)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-8.10-ppc64le.torrent</link>
+            <guid isPermaLink="false">518ed642c7b4b0873b8b79ae1b7178f691e07cb89345fba6b53eeec3b3eaa3c2</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 8.10 - AlmaLinux (s390x)</title>
+            <description>Torrent for almalinux - AlmaLinux (s390x)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-8.10-s390x.torrent</link>
+            <guid isPermaLink="false">7d0024dbe8b0e0285d442ca77c25ded4e50e7adfb827bad4f3c1ecb40dd2c15c</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 8.10 - AlmaLinux (x86_64)</title>
+            <description>Torrent for almalinux - AlmaLinux (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-8.10-x86_64.torrent</link>
+            <guid isPermaLink="false">20bfc852fc45c9017ffb1a881246a65f471444d319b49ab48fc9dd44ed363efb</guid>
+            <pubDate>Wed, 11 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 9.8 - AlmaLinux (aarch64)</title>
+            <description>Torrent for almalinux - AlmaLinux (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-9.8-aarch64.torrent</link>
+            <guid isPermaLink="false">c41bf2464ef6c840eace5de3d61cba51446ed3e203729161d3e66f552299314e</guid>
+            <pubDate>Tue, 26 May 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 9.8 - AlmaLinux (ppc64le)</title>
+            <description>Torrent for almalinux - AlmaLinux (ppc64le)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-9.8-ppc64le.torrent</link>
+            <guid isPermaLink="false">73be9c9fdb43eae2976c80afcac9109c004528ab5c4f970dbfe93e46d43246ac</guid>
+            <pubDate>Tue, 26 May 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 9.8 - AlmaLinux (s390x)</title>
+            <description>Torrent for almalinux - AlmaLinux (s390x)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-9.8-s390x.torrent</link>
+            <guid isPermaLink="false">ca322b42daf16351d0c92dde3188e8d210185136646aac8e6c4cfa460800336d</guid>
+            <pubDate>Tue, 26 May 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>AlmaLinux 9.8 - AlmaLinux (x86_64)</title>
+            <description>Torrent for almalinux - AlmaLinux (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/AlmaLinux-9.8-x86_64.torrent</link>
+            <guid isPermaLink="false">46d110d1a3d1b9e1fde09e8e2d84fa6825d55267c6bd68ff9237443356aabba3</guid>
+            <pubDate>Tue, 26 May 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (aarch64) (aarch64)</title>
+            <description>Torrent for alpine-linux - Standard (aarch64) (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-aarch64.iso.torrent</link>
+            <guid isPermaLink="false">10a9003ca45229d6115fe783598f6a44468e1ca0e51cdd1e5305415f83bf3a35</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (loongarch64) (loongarch64)</title>
+            <description>Torrent for alpine-linux - Standard (loongarch64) (loongarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-loongarch64.iso.torrent</link>
+            <guid isPermaLink="false">97e263be3e8d7741496df76cef4ebaf0b03e76ed0046c30406d264cbb1fe1bbf</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (ppc64le) (ppc64le)</title>
+            <description>Torrent for alpine-linux - Standard (ppc64le) (ppc64le)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-ppc64le.iso.torrent</link>
+            <guid isPermaLink="false">f265d22ad72437b695e220103f370e761a33b45020df823c49e6b615de7c2bf4</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (s390x) (s390x)</title>
+            <description>Torrent for alpine-linux - Standard (s390x) (s390x)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-s390x.iso.torrent</link>
+            <guid isPermaLink="false">bbe398f6cd6cc9a6b7c1cb7b4a110c194614784df9c0a4a7ac9198d331e3e3b1</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (x86) (x86)</title>
+            <description>Torrent for alpine-linux - Standard (x86) (x86)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-x86.iso.torrent</link>
+            <guid isPermaLink="false">dc4abfbdc096c5aaa9a8d8c997edea7d98d30c8c59bcfc9b23de93bd36732f59</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Standard (x86_64) (x86_64)</title>
+            <description>Torrent for alpine-linux - Standard (x86_64) (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-standard-3.23.3-x86_64.iso.torrent</link>
+            <guid isPermaLink="false">b148e1f9c7c8bbc50132acbf8239828a4de5b4a723092f8d507fef852e768866</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Extended (x86) (x86)</title>
+            <description>Torrent for alpine-linux - Extended (x86) (x86)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-extended-3.23.3-x86.iso.torrent</link>
+            <guid isPermaLink="false">342c170200c55c5dd4bde82cfc2012eeebaec9b9e4ab98f9f161faf69dcaf755</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Extended (x86_64) (x86_64)</title>
+            <description>Torrent for alpine-linux - Extended (x86_64) (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-extended-3.23.3-x86_64.iso.torrent</link>
+            <guid isPermaLink="false">b8a7060e28487769c0fc23a6138b87f305fae8b455fcd1e6f686588615f9ee73</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (aarch64) (aarch64)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (aarch64) (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-aarch64.tar.gz.torrent</link>
+            <guid isPermaLink="false">024323d4e03dfddeccce04f0e822ef292471eb7513827c1f4597fd5104c370e9</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (armhf) (armhf)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (armhf) (armhf)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-armhf.tar.gz.torrent</link>
+            <guid isPermaLink="false">89ee73fc6f0fc37b134d67574999e3132208179144c88d450a0d27e8ee76f2fd</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (armv7) (armv7)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (armv7) (armv7)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-armv7.tar.gz.torrent</link>
+            <guid isPermaLink="false">44e9bcafaf77d9d7a031ae1035159ca3186803ab990a80ef9c5821dbd24806e7</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (loongarch64) (loongarch64)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (loongarch64) (loongarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-loongarch64.tar.gz.torrent</link>
+            <guid isPermaLink="false">baa69d002f66e464df8da476dc9162512b9179bc0280bebe3bce0584bb662f70</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (ppc64le) (ppc64le)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (ppc64le) (ppc64le)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-ppc64le.tar.gz.torrent</link>
+            <guid isPermaLink="false">6cac62a306cd7e0889523a7051fa04679bf276a5404dad380661912d49a55e8f</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (s390x) (s390x)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (s390x) (s390x)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-s390x.tar.gz.torrent</link>
+            <guid isPermaLink="false">efdef67fadd1079ca8d2fea6940abf0073d56bb9d939472276846be49a1b18fb</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (x86) (x86)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (x86) (x86)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-x86.tar.gz.torrent</link>
+            <guid isPermaLink="false">c3441fd452d905a5b30e4778d944fc4c01f113554cfb4d360753bad4a35073d9</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Mini Root Filesystem (x86_64) (x86_64)</title>
+            <description>Torrent for alpine-linux - Mini Root Filesystem (x86_64) (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-minirootfs-3.23.3-x86_64.tar.gz.torrent</link>
+            <guid isPermaLink="false">8dabc8875de14a68c587f32f07af4b667abc56327b35f1a7748e08a690b855a8</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (aarch64) (aarch64)</title>
+            <description>Torrent for alpine-linux - Netboot (aarch64) (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-aarch64.tar.gz.torrent</link>
+            <guid isPermaLink="false">c339f16137f63df303f403536cea566ab0b0555699c64cf2b7193649ced35cb4</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (armhf) (armhf)</title>
+            <description>Torrent for alpine-linux - Netboot (armhf) (armhf)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-armhf.tar.gz.torrent</link>
+            <guid isPermaLink="false">a7983b9af72bb1e05ab2ce67d9ca7e789930411acc288e020e3a23810a6fe33e</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (armv7) (armv7)</title>
+            <description>Torrent for alpine-linux - Netboot (armv7) (armv7)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-armv7.tar.gz.torrent</link>
+            <guid isPermaLink="false">6ab16ed90fcc9bf10715fe574643f11d31bcd59c3ba853cc58527db6a052ee55</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (ppc64le) (ppc64le)</title>
+            <description>Torrent for alpine-linux - Netboot (ppc64le) (ppc64le)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-ppc64le.tar.gz.torrent</link>
+            <guid isPermaLink="false">6278becdde294ad405e793836b42540bde950e09b57a3c456980d8e1ad8f2aef</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (s390x) (s390x)</title>
+            <description>Torrent for alpine-linux - Netboot (s390x) (s390x)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-s390x.tar.gz.torrent</link>
+            <guid isPermaLink="false">463ce9d3f4f05996db96d4257ababbe5d3b3e59e937c7e5895436eb759d6a047</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (x86) (x86)</title>
+            <description>Torrent for alpine-linux - Netboot (x86) (x86)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-x86.tar.gz.torrent</link>
+            <guid isPermaLink="false">cce957413a535a878426c41887d26d4c2ba81beecd7604b5c3c3cfcef92acef9</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Netboot (x86_64) (x86_64)</title>
+            <description>Torrent for alpine-linux - Netboot (x86_64) (x86_64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-netboot-3.23.3-x86_64.tar.gz.torrent</link>
+            <guid isPermaLink="false">b3bb67280c88be84e349701b271ed1d4f7b091b2bd083a3557b8c216b4731e18</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+        <item>
+            <title>Alpine Linux 3.23.3 - Raspberry Pi (aarch64) (aarch64)</title>
+            <description>Torrent for alpine-linux - Raspberry Pi (aarch64) (aarch64)</description>
+            <link>https://fosstorrents.com/direct-files/alpine-rpi-3.23.3-aarch64.tar.gz.torrent</link>
+            <guid isPermaLink="false">9665eae95244495de2b719c7d1ebe6a9f611782ec9620bb5723466c77297341c</guid>
+            <pubDate>Wed, 18 Mar 2026 22:11:37 -0300</pubDate>
+        </item>
+    </channel>
+</rss>
