@@ -73,7 +73,9 @@ mod tests {
         let dirs = directories::ProjectDirs::from("", "", "Hashlark").unwrap();
         let dir = dirs.data_dir();
         assert!(
-            dir.components().any(|c| c.as_os_str() == "Hashlark"),
+            // Linux uses a lowercase folder name (`~/.local/share/hashlark`).
+            dir.components()
+                .any(|c| c.as_os_str().eq_ignore_ascii_case("Hashlark")),
             "unexpected default data dir: {}",
             dir.display()
         );
