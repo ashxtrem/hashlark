@@ -83,7 +83,7 @@ pub struct DohResolverClient {
 
 impl DohResolverClient {
     pub fn new(endpoint: Endpoint, fallback_to_system: bool) -> Result<Arc<Self>> {
-        let mut builder = reqwest::Client::builder()
+        let mut builder = super::client_builder()
             .user_agent(super::USER_AGENT)
             .timeout(Duration::from_secs(5))
             .connect_timeout(Duration::from_secs(4));

@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "apps/desktop/src-tauri"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/ashxtrem/hashlark"
@@ -21,3 +21,10 @@ all = { level = "warn", priority = -1 }
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# Android libraries keep their symbol table so `uniffi-bindgen` can read the
+# binding metadata from them; the Android Gradle plugin strips them when it
+# packages the APK.
+[profile.android]
+inherits = "release"
+strip = "none"

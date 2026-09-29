@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutId="new_search"
+        android:shortcutLongLabel="@string/shortcut_new_search_long"
+        android:shortcutShortLabel="@string/shortcut_new_search">
+        <intent
+            android:action="io.github.ashxtrem.hashlark.action.NEW_SEARCH"
+            android:targetClass="io.github.ashxtrem.hashlark.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_favorite"
+        android:shortcutId="favorites"
+        android:shortcutShortLabel="@string/shortcut_favorites">
+        <intent
+            android:action="io.github.ashxtrem.hashlark.action.FAVORITES"
+            android:targetClass="io.github.ashxtrem.hashlark.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_history"
+        android:shortcutId="history"
+        android:shortcutShortLabel="@string/shortcut_history">
+        <intent
+            android:action="io.github.ashxtrem.hashlark.action.HISTORY"
+            android:targetClass="io.github.ashxtrem.hashlark.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+</shortcuts>

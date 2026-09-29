@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hashlark</string>
+    <string name="challenge_title">Browser check</string>
+    <string name="shortcut_new_search">New search</string>
+    <string name="shortcut_new_search_long">Start a new search</string>
+    <string name="shortcut_favorites">Favourites</string>
+    <string name="shortcut_history">History</string>
+</resources>

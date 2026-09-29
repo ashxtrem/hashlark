@@ -522,6 +522,8 @@ data: {"search_id":"s_81f","provider":"example-html","error_kind":"blocked","mes
 
 ## 11. Android app (Phase 2)
 
+> The detailed plan, including adaptive layouts for foldables and revised milestones, is in [android-plan.md](android-plan.md).
+
 ### 11.1 Integration
 - `hashlark-ffi` wraps the core with **UniFFI** (proc-macro mode) and generates Kotlin bindings.
 - Built with `cargo-ndk` for `arm64-v8a`, `armeabi-v7a` and `x86_64`, and packaged as an AAR module inside the Gradle project.
@@ -543,10 +545,9 @@ data: {"search_id":"s_81f","provider":"example-html","error_kind":"blocked","mes
 - Magnet handoff: `Intent(ACTION_VIEW, Uri.parse(magnet))`. If nothing handles it, fall back to copy and share.
 - Bot challenges: an in-app `WebView` activity, then `CookieManager`, then the core session API.
 
-### 11.3 Distribution: **OPEN**, to be decided before A3
-- Options: GitHub Releases, F-Droid, Obtainium and/or Google Play. Google Play is only realistic with legal-only defaults, and review risk is still high.
-- This is deliberately left undecided while Phase 1 (desktop) is the focus.
-- Target: APK under about 20 MB per ABI split.
+### 11.3 Distribution: **GitHub Releases only** (decided 2026-09-29)
+- Signed release APKs (one per ABI plus a universal APK) attached to the GitHub release. No Play Store or F-Droid for now. Details in [android-plan.md §8](android-plan.md#8-distribution-and-signing).
+- Target: APK under about 25 MB per ABI split, with built-in Tor.
 
 ---
 
@@ -700,8 +701,15 @@ Estimates assume **one developer working part time** (about 15–20 h/week). Adj
 | 6 | Licence | **GPL-3.0-or-later** | D11, §14 |
 | 7 | Authoring tools | `defs new` + hot reload in M4; definition editor + Cardigann importer in M8 | §7, §7.3 |
 
+### Decided (2026-09-29)
+| # | Question | Decision | See |
+|---|---|---|---|
+| 8 | Android distribution | **GitHub Releases only**, signed APKs | §11.3 |
+| 9 | Tor on Android | Built in (Arti) from v1 | [android-plan.md](android-plan.md) |
+| 10 | Android minimum version | Android 8.0 (`minSdk 26`) | [android-plan.md §5.4](android-plan.md#54-minimum-android-version) |
+
 ### Open
-1. **Android store strategy** (GitHub / F-Droid / Obtainium / Google Play). **Deferred until Phase 2**; decide before A3.
+None.
 
 ---
 
@@ -728,4 +736,4 @@ Updated 2026-09-29. Phase 1 (desktop and headless server) is implemented and tes
 - **Browser-check flow** (`open_challenge` / `finish_challenge`): the engine side is tested; the desktop window flow hasn't been exercised against a real challenge page.
 - **Code signing:** Windows (Authenticode / Azure Trusted Signing) and macOS notarization need accounts and secrets (see `docs/releasing.md`).
 - **Registrations:** domain, GitHub org and crates.io name (§1).
-- **Phase 2 (Android)** hasn't started. The core is ready for UniFFI; `Engine` is the intended FFI surface.
+- **Phase 2 (Android)** is implemented (milestones A0 to A5 of [android-plan.md](android-plan.md)). Still to do on a real device: the Galaxy Z Fold7 checklist, the first signed release (needs the release keystore secrets), and the Android 8 and 9 emulator runs, which CI performs.
