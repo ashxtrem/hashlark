@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,8 +23,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -54,27 +59,45 @@ fun ResultsList(
     modifier: Modifier = Modifier,
     state: LazyListState,
     contentPadding: PaddingValues = PaddingValues(),
+    providerNames: Map<String, String> = emptyMap(),
+    /** The row to give keyboard and screen-reader focus to once, e.g. after coming back from its details. */
+    restoreFocusId: String? = null,
+    onFocusRestored: () -> Unit = {},
     footer: @Composable (() -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val density = RowDensity.forWidth(maxWidth.value)
+        // Age and provider go first when room or text scale run short; the text itself is never made smaller.
+        val fontScale = LocalDensity.current.fontScale
+        val showExtras = density != RowDensity.Narrow || (maxWidth >= 400.dp && fontScale <= 1.3f)
+        val restoreFocus = remember { FocusRequester() }
         LazyColumn(state = state, contentPadding = contentPadding, modifier = Modifier.testTag(RESULTS_TAG)) {
             if (density == RowDensity.Wide) {
-                item(key = "header") { TableHeader(order, direction, onSort) }
+                item(key = "header", contentType = "header") { TableHeader(order, direction, onSort) }
             }
-            items(results, key = { it.id }) { result ->
+            items(results, key = { it.id }, contentType = { "result" }) { result ->
+                val restoring = result.id == restoreFocusId
+                if (restoring) {
+                    LaunchedEffect(restoreFocusId) {
+                        runCatching { restoreFocus.requestFocus() }
+                        onFocusRestored()
+                    }
+                }
                 ResultRow(
                     result = result,
                     density = density,
                     selected = result.id == selectedId,
                     favorite = result.id in favoriteIds,
                     actions = actions,
+                    providerNames = providerNames,
+                    showExtras = showExtras,
                     onClick = { onSelect(result) },
                     onToggleFavorite = { onToggleFavorite(result) },
+                    focusRequester = if (restoring) restoreFocus else null,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
-            if (footer != null) item(key = "footer") { footer() }
+            if (footer != null) item(key = "footer", contentType = "footer") { footer() }
         }
     }
 }
@@ -112,7 +135,7 @@ private fun HeaderCell(
 ) {
     val active = column == order
     Row(
-        modifier.clickable { onSort(column) }.padding(vertical = 10.dp),
+        modifier.heightIn(min = 48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { onSort(column) },
         horizontalArrangement = if (align == TextAlign.Start) androidx.compose.foundation.layout.Arrangement.Start else androidx.compose.foundation.layout.Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {

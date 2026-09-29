@@ -182,4 +182,93 @@ class SearchViewModelTest {
         assertNotNull(vm.state.value.shown)
         assertEquals(ErrorKind.Timeout, ErrorKind.Timeout)
     }
+
+    @Test
+    fun `closing the details keeps the selection and does not reopen them`() = runTest {
+        fake.script = { page("a", "b") }
+        val vm = viewModel()
+        vm.setText("x")
+        vm.run()
+        vm.select("b")
+        assertTrue(vm.state.value.detailOpen)
+
+        vm.closeDetail()
+        // The row stays highlighted so the list can mark where the user was, but no detail is showing.
+        assertEquals("b", vm.state.value.selectedId)
+        assertFalse(vm.state.value.detailOpen)
+
+        // Streaming more results, or a re-sort, must not open it either.
+        vm.pickSort(SortOrder.Title)
+        vm.toggleSort(SortOrder.Title)
+        assertFalse(vm.state.value.detailOpen)
+    }
+
+    @Test
+    fun `an open detail stays open while more results are added`() = runTest {
+        fake.script = { q -> if (q.page == 1) page("a") else page("b") }
+        val vm = viewModel()
+        vm.setText("x")
+        vm.run()
+        vm.select("a")
+        vm.loadMore()
+        assertTrue(vm.state.value.detailOpen)
+        assertEquals("a", vm.state.value.selectedId)
+    }
+
+    @Test
+    fun `submitting another query keeps the filters and the sort`() = runTest {
+        fake.script = { page("a") }
+        val vm = viewModel()
+        vm.setText("one")
+        vm.toggleCategory(Category.Movies)
+        vm.setProviders(setOf("beta"))
+        vm.pickSort(SortOrder.Seeders)
+        vm.run()
+        vm.setText("two")
+        vm.run()
+
+        assertEquals(listOf("one", "two"), fake.queries.map { it.text })
+        assertEquals(listOf(Category.Movies), fake.queries.last().categories)
+        assertEquals(listOf("beta"), fake.queries.last().providers)
+        assertEquals(SortOrder.Seeders, fake.queries.last().sort)
+    }
+
+    @Test
+    fun `applying filters changes them together and does not search`() {
+        val vm = viewModel()
+        vm.applyFilters(setOf(Category.Music), setOf("alpha"), SortOrder.Size, SortDirection.Ascending)
+        val state = vm.state.value
+        assertEquals(setOf(Category.Music), state.categories)
+        assertEquals(setOf("alpha"), state.providerIds)
+        assertEquals(SortOrder.Size to SortDirection.Ascending, state.order to state.direction)
+        assertTrue(fake.queries.isEmpty())
+    }
+
+    @Test
+    fun `resetting filters clears categories and providers but keeps the sort`() {
+        val vm = viewModel()
+        vm.applyFilters(setOf(Category.Music), setOf("alpha"), SortOrder.Size, SortDirection.Ascending)
+        vm.resetFilters()
+        val state = vm.state.value
+        assertTrue(state.categories.isEmpty())
+        assertNull(state.providerIds)
+        assertEquals(SortOrder.Size, state.order)
+    }
+
+    @Test
+    fun `stopping a search is remembered until the next one`() = runTest {
+        fake.stayOpen = true
+        fake.script = { listOf(SearchEvent.ProviderStarted("alpha")) }
+        val vm = viewModel()
+        vm.setText("x")
+        vm.run()
+        vm.cancel()
+        assertTrue(vm.state.value.cancelled)
+        assertTrue((vm.state.value.progress.providers.getValue("alpha") as ProviderProgress.Failed).wasCancelled)
+
+        fake.stayOpen = false
+        fake.script = { page("a") }
+        vm.run()
+        assertFalse(vm.state.value.cancelled)
+    }
 }

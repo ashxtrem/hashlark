@@ -17,23 +17,50 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.github.ashxtrem.hashlark.ui.WindowShape
+import io.github.ashxtrem.hashlark.ui.PanePlan
 import io.github.ashxtrem.hashlark.ui.rememberWindowShape
+
+/**
+ * Tells the app frame that a screen is showing a full-screen detail, so it hides the main
+ * navigation (Back returns to the list). Screens report it with [FullScreenDetailEffect].
+ */
+@Stable
+class DetailChrome {
+    var fullScreen by mutableStateOf(false)
+}
+
+val LocalDetailChrome = compositionLocalOf<DetailChrome?> { null }
+
+/** While [active] is true (and this call is composed), the main navigation is hidden. */
+@Composable
+fun FullScreenDetailEffect(active: Boolean) {
+    val chrome = LocalDetailChrome.current
+    DisposableEffect(chrome, active) {
+        if (active) chrome?.fullScreen = true
+        onDispose { if (active) chrome?.fullScreen = false }
+    }
+}
 
 /**
  * A list with a details pane, for every screen that has one (providers,
  * settings, history, favourites). The caller owns [selected]; [onDeselect] is
- * called when the user goes back to the list. On a narrow window the detail
+ * called when the user goes back to the list. When the window cannot fit both
+ * panes (see [io.github.ashxtrem.hashlark.ui.WindowShape.planPanes]) the detail
  * replaces the list and Back (also the predictive-back gesture) returns to it;
- * on a wide window both are shown, and next to a vertical hinge they sit on
+ * otherwise both are shown, and next to a vertical hinge they sit on
  * either side of it.
  *
- * Which layout applies is decided by [WindowShape] alone, from the size of the
- * window right now, so folding and unfolding always land on the right one.
+ * Which layout applies is decided by the window alone, from its size right now,
+ * so folding and unfolding always land on the right one.
  */
 @Composable
 fun AdaptiveListDetail(
@@ -45,9 +72,10 @@ fun AdaptiveListDetail(
     placeholder: String = "Select an item",
 ) {
     val shape = rememberWindowShape()
-    if (shape.hasTwoPanes) {
+    val plan = shape.planPanes()
+    if (plan is PanePlan.Split) {
         TwoPane(
-            shape = shape,
+            plan = plan,
             modifier = modifier,
             list = list,
             detail = {
@@ -56,6 +84,7 @@ fun AdaptiveListDetail(
         )
     } else {
         BackHandler(enabled = selected != null, onBack = onDeselect)
+        FullScreenDetailEffect(selected != null)
         Box(modifier) {
             if (selected != null) detail(selected, onDeselect) else list()
         }
@@ -65,18 +94,14 @@ fun AdaptiveListDetail(
 /** The list on the left and the details on the right, split at the hinge when there is one. */
 @Composable
 fun TwoPane(
-    shape: WindowShape,
+    plan: PanePlan.Split,
     list: @Composable () -> Unit,
     detail: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    /** Overrides the default list width (a screen that has other panes beside these two). */
-    listWidthOverride: Dp? = null,
 ) {
-    val listWidth = if (listWidthOverride != null) listWidthOverride else if (shape.isBook) shape.widthDp * shape.hingeStartFraction else (shape.widthDp * 0.45f).coerceIn(340.dp, 560.dp)
-    val hingeGap = if (shape.isBook) shape.widthDp * (shape.hingeEndFraction - shape.hingeStartFraction) else 0.dp
     Row(modifier.fillMaxSize()) {
-        Box(Modifier.width(listWidth).fillMaxHeight()) { list() }
-        if (hingeGap > 0.dp) Spacer(Modifier.width(hingeGap)) else VerticalDivider()
+        Box(Modifier.width(plan.listWidth).fillMaxHeight()) { list() }
+        if (plan.hingeGap > 0.dp) Spacer(Modifier.width(plan.hingeGap)) else VerticalDivider()
         Box(Modifier.weight(1f).fillMaxHeight()) { detail() }
     }
 }

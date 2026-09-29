@@ -6,22 +6,19 @@ import android.view.View
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.draganddrop.dragAndDropSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.DropdownMenu
@@ -40,7 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropTransferData
-import androidx.compose.ui.draganddrop.mimeTypes
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -50,11 +51,15 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.ashxtrem.hashlark.core.Format
 import io.github.ashxtrem.hashlark.core.MergedResult
@@ -62,10 +67,10 @@ import io.github.ashxtrem.hashlark.ui.ResultActions
 
 /** How much a row shows, decided by the width it has (not by the window: it may sit inside a pane). */
 enum class RowDensity {
-    /** Title on two lines, then one meta line. */
+    /** Filename on up to two lines, then size, seeds and sources. */
     Narrow,
 
-    /** Title on one line with the meta line below and action icons on the right. */
+    /** The same, in a roomier window: age and provider show on a third line. */
     Medium,
 
     /** A table row with a column each for size, seeders, peers, age and sources. */
@@ -86,9 +91,24 @@ object TableColumns {
     val size = 84.dp
     val seeders = 72.dp
     val peers = 72.dp
-    val age = 56.dp
-    val sources = 64.dp
-    val actions = 132.dp
+    val age = 64.dp
+    val sources = 72.dp
+    val actions = 56.dp
+}
+
+/** `Seeds 812`, `Seeds 0`, or `Seeds unknown`: a provider that does not report seeders is not the same as none. */
+fun seedsText(seeders: Int?): String = if (seeders == null) "Seeds unknown" else "Seeds ${Format.count(seeders)}"
+
+fun sourcesText(count: Int): String = if (count == 1) "1 source" else "$count sources"
+
+/** `3d ago`, or null when the provider gave no date. */
+fun agoText(published: String?): String? {
+    val age = Format.age(published)
+    return when (age) {
+        Format.UNKNOWN -> null
+        "0h" -> "Less than an hour ago"
+        else -> "$age ago"
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
@@ -99,18 +119,30 @@ fun ResultRow(
     selected: Boolean,
     favorite: Boolean,
     actions: ResultActions,
+    providerNames: Map<String, String>,
+    showExtras: Boolean,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val dragText = remember(result) { actions.dragText(result) }
     val primary = result.primary
+    val accent = MaterialTheme.colorScheme.primary
+    val description = remember(result) {
+        "${primary.title}. ${Format.bytes(primary.sizeBytes)}. ${seedsText(result.seeders)}. ${sourcesText(result.sources.size)}."
+    }
 
     Surface(
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         modifier = modifier
             .fillMaxWidth()
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            // The leading bar says "selected" without relying on the background colour.
+            .drawBehind {
+                if (selected) drawRect(accent, size = Size(SELECTED_BAR.toPx(), size.height))
+            }
             // Keyboard: Ctrl+C copies the magnet of the focused row.
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.C) {
@@ -145,16 +177,31 @@ fun ResultRow(
                     })
                 },
             )
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .combinedClickable(
+                onClickLabel = "Show details",
+                onClick = onClick,
+                onLongClickLabel = "More actions",
+                onLongClick = { menuOpen = true },
+            )
             .semantics(mergeDescendants = true) {
-                contentDescription = "${primary.title}, ${Format.bytes(primary.sizeBytes)}, ${Format.count(result.seeders)} seeders"
+                contentDescription = description
+                this.selected = selected
+                // The long-press menu, reachable from TalkBack's actions menu.
+                customActions = buildList {
+                    add(CustomAccessibilityAction("Open in torrent client") { actions.open(result); true })
+                    if (result.hasMagnet) {
+                        add(CustomAccessibilityAction("Copy magnet link") { actions.copyMagnet(result); true })
+                        add(CustomAccessibilityAction("Share magnet link") { actions.share(result); true })
+                    }
+                    if (result.hasTorrentFile) add(CustomAccessibilityAction("Save .torrent") { actions.saveTorrent(result); true })
+                    primary.detailsUrl?.let { url -> add(CustomAccessibilityAction("View on site") { actions.viewOnSite(url); true }) }
+                }
             },
     ) {
         Box {
             when (density) {
-                RowDensity.Narrow -> NarrowRow(result, favorite, actions, onToggleFavorite) { menuOpen = true }
-                RowDensity.Medium -> MediumRow(result, favorite, actions, onToggleFavorite) { menuOpen = true }
-                RowDensity.Wide -> WideRow(result, favorite, actions, onToggleFavorite) { menuOpen = true }
+                RowDensity.Wide -> WideRow(result, providerNames, favorite, onToggleFavorite)
+                else -> CompactRow(result, providerNames, showExtras, favorite, onToggleFavorite)
             }
             ResultMenu(
                 expanded = menuOpen,
@@ -169,59 +216,86 @@ fun ResultRow(
     }
 }
 
+private val SELECTED_BAR = 4.dp
+
+/** The filename first (two lines), the facts in a labelled line, optionally when and where it was published. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NarrowRow(
+private fun CompactRow(
     result: MergedResult,
+    providerNames: Map<String, String>,
+    showExtras: Boolean,
     favorite: Boolean,
-    actions: ResultActions,
     onToggleFavorite: () -> Unit,
-    onMenu: () -> Unit,
 ) {
-    Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(result.primary.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            MetaLine(result)
+    val p = result.primary
+    Row(
+        Modifier.heightIn(min = 64.dp).padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                p.title,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // Whole facts wrap onto the next line instead of being cut in the middle.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Fact(Format.bytes(p.sizeBytes), strong = true)
+                Fact(seedsText(result.seeders))
+                Fact(sourcesText(result.sources.size))
+            }
+            if (showExtras) {
+                val provider = providerNames[p.providerId] ?: p.providerId
+                Text(
+                    listOfNotNull(agoText(p.published), "via $provider").joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-        IconButton(onClick = { actions.open(result) }) {
-            Icon(Icons.Filled.Download, contentDescription = "Open in torrent client", tint = MaterialTheme.colorScheme.primary)
-        }
-        IconButton(onClick = onMenu) { Icon(Icons.Filled.MoreVert, contentDescription = "More actions") }
+        SaveButton(favorite, onToggleFavorite)
     }
 }
 
 @Composable
-private fun MediumRow(
-    result: MergedResult,
-    favorite: Boolean,
-    actions: ResultActions,
-    onToggleFavorite: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(result.primary.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            MetaLine(result)
-        }
-        RowActions(result, favorite, actions, onToggleFavorite, onMenu)
-    }
+private fun Fact(text: String, strong: Boolean = false) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (strong) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
 private fun WideRow(
     result: MergedResult,
+    providerNames: Map<String, String>,
     favorite: Boolean,
-    actions: ResultActions,
     onToggleFavorite: () -> Unit,
-    onMenu: () -> Unit,
 ) {
     val p = result.primary
-    Row(Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.heightIn(min = 56.dp).padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(p.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // One line in a table: the middle is cut, so the end (release group, resolution) stays visible.
             Text(
-                p.category?.label ?: "Other",
-                style = MaterialTheme.typography.labelSmall,
+                p.title,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+            Text(
+                listOfNotNull(p.category?.label ?: "Other", providerNames[p.providerId] ?: p.providerId).joinToString(" · "),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Cell(Format.bytes(p.sizeBytes), TableColumns.size)
@@ -229,14 +303,12 @@ private fun WideRow(
         Cell(Format.count(result.leechers), TableColumns.peers)
         Cell(Format.age(p.published), TableColumns.age)
         Cell(result.sources.size.toString(), TableColumns.sources)
-        Box(Modifier.width(TableColumns.actions), contentAlignment = Alignment.CenterEnd) {
-            RowActions(result, favorite, actions, onToggleFavorite, onMenu)
-        }
+        Box(Modifier.width(TableColumns.actions), contentAlignment = Alignment.CenterEnd) { SaveButton(favorite, onToggleFavorite) }
     }
 }
 
 @Composable
-private fun Cell(text: String, width: androidx.compose.ui.unit.Dp, color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified) {
+private fun Cell(text: String, width: Dp, color: Color = Color.Unspecified) {
     Text(
         text,
         modifier = Modifier.width(width),
@@ -247,47 +319,16 @@ private fun Cell(text: String, width: androidx.compose.ui.unit.Dp, color: androi
     )
 }
 
+/** The one save action of a row; everything else is in the details and the long-press menu. */
 @Composable
-private fun RowActions(
-    result: MergedResult,
-    favorite: Boolean,
-    actions: ResultActions,
-    onToggleFavorite: () -> Unit,
-    onMenu: () -> Unit,
-) {
-    Row {
-        IconButton(onClick = { actions.open(result) }) {
-            Icon(Icons.Filled.Download, contentDescription = "Open in torrent client", tint = MaterialTheme.colorScheme.primary)
-        }
-        IconButton(onClick = onToggleFavorite) {
-            Icon(
-                if (favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                contentDescription = if (favorite) "Remove from favourites" else "Save to favourites",
-                tint = if (favorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        IconButton(onClick = onMenu) { Icon(Icons.Filled.MoreVert, contentDescription = "More actions") }
+private fun SaveButton(favorite: Boolean, onToggleFavorite: () -> Unit) {
+    IconButton(onClick = onToggleFavorite) {
+        Icon(
+            if (favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+            contentDescription = if (favorite) "Remove from favourites" else "Save to favourites",
+            tint = if (favorite) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
-}
-
-/** `5.7 GiB · ↑ 812 · 3d · 2 sources`. */
-@Composable
-private fun MetaLine(result: MergedResult) {
-    val p = result.primary
-    val parts = buildList {
-        add(Format.bytes(p.sizeBytes))
-        add("↑ ${Format.count(result.seeders)}")
-        add("↓ ${Format.count(result.leechers)}")
-        add(Format.age(p.published))
-        add(if (result.sources.size == 1) "1 source" else "${result.sources.size} sources")
-    }
-    Text(
-        parts.joinToString("  ·  "),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 @Composable

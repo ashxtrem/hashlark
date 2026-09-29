@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -24,6 +26,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -31,9 +38,11 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,9 +53,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ashxtrem.hashlark.ui.common.CenteredMessage
+import io.github.ashxtrem.hashlark.ui.common.DetailChrome
+import io.github.ashxtrem.hashlark.ui.common.LocalDetailChrome
 import io.github.ashxtrem.hashlark.ui.common.LoadingBox
 import io.github.ashxtrem.hashlark.ui.library.FavoritesScreen
 import io.github.ashxtrem.hashlark.ui.library.HistoryScreen
@@ -59,6 +72,7 @@ import io.github.ashxtrem.hashlark.ui.search.SearchScreen
 import io.github.ashxtrem.hashlark.ui.search.SearchViewModel
 import io.github.ashxtrem.hashlark.ui.settings.SettingsScreen
 import io.github.ashxtrem.hashlark.ui.settings.SettingsViewModel
+import io.github.ashxtrem.hashlark.ui.theme.LocalNavColors
 
 /** Everything the root needs; the activity creates these once and they survive rotation and folding. */
 class Screens(
@@ -71,9 +85,9 @@ class Screens(
 )
 
 /**
- * The app's frame: the navigation (bottom bar, rail or permanent drawer, or none
- * in tabletop posture), the current screen, and the dialogs and messages that
- * belong to no single screen.
+ * The app's frame: the navigation (bottom bar below 600 dp, a compact rail up to 1199 dp, a sidebar
+ * from 1200 dp, none in tabletop posture or while a detail is full-screen), the current screen, and the
+ * dialogs and messages that belong to no single screen.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -121,59 +135,136 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     BackHandler(enabled = destination != Destination.Search) { destination = Destination.Search }
 
     val imeVisible = WindowInsets.isImeVisible
-    val baseLayout = when {
-        shape.isTabletop -> NavigationSuiteType.None
-        shape.width == WidthClass.Large -> NavigationSuiteType.NavigationDrawer
-        shape.isShort || shape.width >= WidthClass.Medium -> NavigationSuiteType.NavigationRail
-        else -> NavigationSuiteType.NavigationBar
+    val chrome = remember { DetailChrome() }
+    val nav = LocalNavColors.current
+    // The window decides which navigation there is; a full-screen detail hides it (Back returns to the list).
+    val layoutType = when {
+        chrome.fullScreen -> NavigationSuiteType.None
+        shape.navigation == NavKind.Rail -> NavigationSuiteType.NavigationRail
+        // A bottom bar would sit on top of the keyboard and eat the little room left.
+        shape.navigation == NavKind.Bar -> if (imeVisible) NavigationSuiteType.None else NavigationSuiteType.NavigationBar
+        else -> NavigationSuiteType.None
     }
-    // A bottom bar would sit on top of the keyboard and eat the little room left.
-    val layoutType = if (baseLayout == NavigationSuiteType.NavigationBar && imeVisible) NavigationSuiteType.None else baseLayout
+    val drawerShown = shape.navigation == NavKind.Drawer && !chrome.fullScreen
     val barShown = layoutType == NavigationSuiteType.NavigationBar
     // The bottom bar looks after the bottom inset itself; every other layout needs it here.
     val sides = WindowInsetsSides.Top + WindowInsetsSides.Horizontal
     val insets = WindowInsets.safeDrawing.only(if (barShown) sides else sides + WindowInsetsSides.Bottom)
+    // A rail or sidebar already sits inside the start inset.
+    // Five labels fit only with normal-sized text on a window that is not tiny; otherwise the icons carry the names.
+    val labelsAlways = shape.fontScale <= 1.3f && shape.widthDp >= 340.dp
+    val startTaken = layoutType == NavigationSuiteType.NavigationRail || drawerShown
 
-    NavigationSuiteScaffold(
-        layoutType = layoutType,
-        navigationSuiteItems = {
-            Destination.entries.forEach { item ->
-                item(
-                    selected = item == destination,
-                    onClick = { destination = item },
-                    icon = { Icon(item.icon, contentDescription = null) },
-                    label = { Text(item.label) },
+    val itemColors = NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = nav.onIndicator,
+            selectedTextColor = nav.content,
+            indicatorColor = nav.indicator,
+            unselectedIconColor = nav.content,
+            unselectedTextColor = nav.content,
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = nav.onIndicator,
+            selectedTextColor = nav.content,
+            indicatorColor = nav.indicator,
+            unselectedIconColor = nav.content,
+            unselectedTextColor = nav.content,
+        ),
+    )
+
+    Row(Modifier.fillMaxSize()) {
+        if (drawerShown) {
+            PermanentDrawerSheet(
+                Modifier.width(WindowShape.DRAWER_WIDTH),
+                drawerContainerColor = nav.container,
+                drawerContentColor = nav.content,
+            ) {
+                Text(
+                    "Hashlark",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = nav.indicator,
+                    modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 16.dp),
                 )
-            }
-        },
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(insets)) {
-                update?.let { available ->
-                    UpdateBanner(
-                        version = available.version,
-                        onView = { actions.viewOnSite(available.pageUrl) },
-                        onDismiss = app::dismissUpdate,
+                Destination.entries.forEach { item ->
+                    NavigationDrawerItem(
+                        label = { Text(item.label) },
+                        selected = item == destination,
+                        onClick = { destination = item },
+                        icon = { Icon(item.icon, contentDescription = null) },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = nav.indicator,
+                            selectedIconColor = nav.onIndicator,
+                            selectedTextColor = nav.onIndicator,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = nav.content,
+                            unselectedTextColor = nav.content,
+                        ),
                     )
                 }
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when {
-                        startError != null -> CenteredMessage(
-                            "Hashlark could not start",
-                            body = startError,
-                            action = { Button(onClick = app::retryStart) { Text("Try again") } },
+            }
+        }
+        NavigationSuiteScaffold(
+            layoutType = layoutType,
+            modifier = Modifier.weight(1f),
+            navigationSuiteColors = NavigationSuiteDefaults.colors(
+                navigationBarContainerColor = nav.container,
+                navigationBarContentColor = nav.content,
+                navigationRailContainerColor = nav.container,
+                navigationRailContentColor = nav.content,
+            ),
+            navigationSuiteItems = {
+                Destination.entries.forEach { item ->
+                    item(
+                        selected = item == destination,
+                        onClick = { destination = item },
+                        // Without labels the icon carries the destination name for screen readers.
+                        icon = { Icon(item.icon, contentDescription = if (labelsAlways) null else item.label) },
+                        label = if (labelsAlways) {
+                            { Text(item.label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        } else {
+                            null
+                        },
+                        alwaysShowLabel = labelsAlways,
+                        colors = itemColors,
+                    )
+                }
+            },
+        ) {
+            Box(
+                Modifier.fillMaxSize().then(
+                    if (startTaken) Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Start)) else Modifier,
+                ),
+            ) {
+                Column(Modifier.fillMaxSize().windowInsetsPadding(insets)) {
+                    update?.let { available ->
+                        UpdateBanner(
+                            version = available.version,
+                            onView = { actions.viewOnSite(available.pageUrl) },
+                            onDismiss = app::dismissUpdate,
                         )
-                        settings == null -> LoadingBox(label = "Starting…")
-                        else -> saveable.SaveableStateProvider(destination.name) {
-                            Screen(destination, shape, screens, actions, searchFocus)
+                    }
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        when {
+                            startError != null -> CenteredMessage(
+                                "Hashlark could not start",
+                                body = startError,
+                                action = { Button(onClick = app::retryStart) { Text("Try again") } },
+                            )
+                            settings == null -> LoadingBox(label = "Starting…")
+                            else -> CompositionLocalProvider(LocalDetailChrome provides chrome) {
+                                saveable.SaveableStateProvider(destination.name) {
+                                    Screen(destination, shape, screens, actions, searchFocus)
+                                }
+                            }
                         }
                     }
                 }
+                SnackbarHost(
+                    snackbar,
+                    Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)).padding(8.dp),
+                )
             }
-            SnackbarHost(
-                snackbar,
-                Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)).padding(8.dp),
-            )
         }
     }
 

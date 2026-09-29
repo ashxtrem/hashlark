@@ -69,8 +69,8 @@ The cost is writing the screens a second time. The screens are small (about 2,50
 |---|---|---|---|
 | **Cover portrait** (compact width) | Bottom bar | Search bar at top, filters as chips + bottom sheet, 2-line result cards | Full-screen, back returns to list with scroll position kept |
 | **Cover landscape** (compact height) | Navigation rail | Search bar collapses on scroll, single-line rows, filter sheet slides from the side | Full-screen |
-| **Inner portrait / landscape** (medium–expanded) | Rail | Two panes: results list + details; list shows columns (size, seeds, peers, age, sources) when wide enough | Right pane, stays open while browsing |
-| **Wide inner landscape, tablets, DeX** (expanded+) | Rail or drawer | Three panes: filters \| results table \| details | Right pane |
+| **Inner portrait / landscape** (Fold7: about 750 × 832 dp or 832 × 750 dp) | Rail | Results use the full width (a table when wide enough: size, seeds, peers, age, sources). No forced split | Full-screen; navigation hidden, Back returns to the same list position |
+| **Tablets, DeX, wide windows** (from 840 dp, if both panes fit) | Rail, sidebar from 1200 dp | Results table, then results beside details after a result is opened; filters in a dialog | Right pane with a Close button; no empty pane before selection |\| results table \| details | Right pane |
 | **Tabletop** (half-open, hinge horizontal) | Hidden while in posture | Top half: results (or details). Bottom half: search field, filter chips and the keyboard | Top half |
 | **Book** (half-open, hinge vertical) | Rail | Results on the left of the hinge, details on the right | Right of hinge |
 | **Split screen / small pop-up** | Adapts like the rows above | Must not crash or clip at very small sizes; falls back to the cover-portrait layout | Full-screen |
@@ -79,8 +79,8 @@ The cost is writing the screens a second time. The screens are small (about 2,50
 
 The same `ResultRow` composable has three densities picked from available width (not the window class, since it may sit inside a pane):
 
-- **Narrow:** title (2 lines), then a meta line: size · seeders · age · source count. Primary action = open magnet; overflow menu for copy / share / save `.torrent` / favourite.
-- **Medium:** title on one line, meta line below, action icons on the right.
+- **Narrow:** filename (2 lines), then labelled facts: size, `Seeds n` (or `Seeds unknown`, never a bare dash for missing counts), source count; age and provider on a third line when width and text scale allow. One save (star) action; opening the result is a tap, and the primary "Open in client" action, copy, share, `.torrent` and source links are in the details (and in the long-press menu and TalkBack actions).
+- **Medium:** the same with age and provider always shown.
 - **Wide:** a table with sortable column headers, like the desktop `ResultsList`.
 
 ### 3.4 Other screens
@@ -340,7 +340,7 @@ What was built, and where it differs from the plan above. Measured on an Android
 | `ListDetailPaneScaffold`, `SupportingPaneScaffold` (§3.1) | `NavigationSuiteScaffold` plus a small two-pane layout (`ui/common/AdaptiveListDetail.kt`) driven by `WindowShape` | The library scaffold kept its pane state after an unfold (the details stayed alone on the wide screen) and, on the emulator's cover screen, still split the window at the inner screen's hinge. Deriving the layout only from the current window size and posture removed both problems and made it testable |
 | Material 3 Adaptive 1.3 | 1.2 | 1.3 needs `compileSdk 37` |
 | A chip per provider under the search box (§4.1) | One summary chip beside the result count; tapping it opens the per-provider list (counts, speed, errors, "open site" for browser checks) | The chips took several rows on a narrow list pane; the popup keeps the same information and gives the results the room |
-| Separate `SupportingPaneScaffold` for filters | A filter panel on windows of 1200 dp and wider, a bottom sheet elsewhere | The inner display of the Fold7 is about 840 dp wide: two roomy panes beat three cramped ones |
+| Separate `SupportingPaneScaffold` for filters; three panes from 1200 dp | Filters are a bottom sheet below 600 dp and a dialog above, with Apply / Reset / Cancel; two panes at most, and only when `WindowShape.planPanes()` finds room after navigation, insets, margins and text scale (never from 600 dp alone: the Fold7 inner display, about 750 × 832 dp, uses list → full-screen details) | Replaced the earlier 1200 dp filter panel (and the 600 dp two-pane rule) in the UI refactor of 29 September 2026. Earlier reason:  The inner display of the Fold7 is about 840 dp wide: two roomy panes beat three cramped ones |
 | `WindowInfoTracker` for postures | `currentWindowAdaptiveInfo().windowPosture`, which is built on it | Same data; fewer moving parts. A hinge is ignored when either half would be under 300 dp (the emulator reports the inner hinge on the cover screen) |
 | Roborazzi screenshot tests (§6) | Robolectric layout tests that assert the layout branch for nine window shapes and save a PNG of each | Same coverage of layouts without the plugin (and its AGP 9 risk); pictures are uploaded by CI for review, not diffed |
 | `EncryptedSharedPreferences` avoided | AES-256-GCM key in the Android Keystore, values in a DataStore file | As planned; the instrumented test found that Keystore keys refuse a caller-supplied IV, which is why encryption lets the provider pick it |
