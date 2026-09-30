@@ -15,6 +15,16 @@ A fast, private, cross-platform torrent **search** app. Hashlark asks many index
 - **Desktop app** for Windows, macOS and Linux, an **Android app** that adapts to phones, tablets and foldables (built for the Galaxy Z Fold7), and a **headless server** with a web UI, API keys, Docker image and a Torznab endpoint for Sonarr/Radarr.
 - **Private by design:** no telemetry. Credentials are kept in the OS keychain. Hashlark ships with legal sources only.
 
+## Screenshots
+
+The Android app (release build) searching the built-in providers:
+
+<p>
+  <img src="docs/screenshots/android-search.png" alt="Search results merged from several providers" width="280">
+  &nbsp;
+  <img src="docs/screenshots/android-providers.png" alt="Providers list with per-provider switches" width="280">
+</p>
+
 ## Documentation
 
 | | |
