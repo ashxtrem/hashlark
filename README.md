@@ -17,12 +17,16 @@ A fast, private, cross-platform torrent **search** app. Hashlark asks many index
 
 ## Screenshots
 
-The Android app (release build) searching the built-in providers:
+Desktop app: one search across 12 providers, with duplicates merged.
+
+<img src="docs/screenshots/desktop-search.png" alt="Desktop search results from many providers" width="720">
+
+Android app (release build):
 
 <p>
-  <img src="docs/screenshots/android-search.png" alt="Search results merged from several providers" width="280">
+  <img src="docs/screenshots/android-search.png" alt="Android search results merged from several providers" width="280">
   &nbsp;
-  <img src="docs/screenshots/android-providers.png" alt="Providers list with per-provider switches" width="280">
+  <img src="docs/screenshots/android-providers.png" alt="Android providers list with per-provider switches" width="280">
 </p>
 
 ## Documentation
