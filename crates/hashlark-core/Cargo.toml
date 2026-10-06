@@ -8,7 +8,7 @@ homepage.workspace = true
 authors.workspace = true
 
 [dependencies]
-arti-client = { version = "0.46.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite"], optional = true }
+arti-client = { version = "0.47.0", default-features = false, features = ["tokio", "rustls", "compression", "onion-service-client", "static-sqlite"], optional = true }
 async-trait = "0.1.92"
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 data-encoding = "2.11.1"
@@ -36,7 +36,7 @@ thiserror = "2.0.21"
 time = { version = "0.3.55", features = ["serde", "parsing", "formatting", "macros"] }
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "sync", "fs"] }
 tokio-util = "0.7.19"
-tor-rtcompat = { version = "0.46.0", default-features = false, features = ["tokio", "rustls"], optional = true }
+tor-rtcompat = { version = "0.47.0", default-features = false, features = ["tokio", "rustls"], optional = true }
 tracing = "0.1.44"
 url = { version = "2.5.8", features = ["serde"] }
 utoipa = { version = "6.0.0", features = ["time", "url"], optional = true }
