@@ -44,4 +44,22 @@ describe('DeleteTorrentDialog', () => {
     await fireEvent.click(button);
     expect(onconfirm).toHaveBeenCalledWith(['a'], true);
   });
+
+  it('keeps the tick when the targets are refreshed while open', async () => {
+    const onconfirm = vi.fn();
+    const { rerender } = render(DeleteTorrentDialog, { targets, onclose: () => {}, onconfirm });
+
+    const box = screen.getByLabelText('Also delete downloaded files') as HTMLInputElement;
+    await fireEvent.click(box);
+    expect(box.checked).toBe(true);
+
+    // An equal but new array, as a live list refresh would give.
+    await rerender({ targets: targets.map((t) => ({ ...t })) });
+    expect(box.checked).toBe(true);
+
+    // Closing and opening again unticks it.
+    await rerender({ targets: [] });
+    await rerender({ targets: [...targets] });
+    expect((screen.getByLabelText('Also delete downloaded files') as HTMLInputElement).checked).toBe(false);
+  });
 });

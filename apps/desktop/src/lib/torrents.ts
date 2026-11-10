@@ -426,6 +426,16 @@ export function isMagnet(text: string): boolean {
   return /^magnet:\?/i.test(text.trim());
 }
 
+/** Largest `.torrent` file read; bigger ones are refused before reading. */
+export const MAX_TORRENT_FILE = 10 * 1024 * 1024;
+
+/** Why a picked or dropped file can't be added, or null when it can. */
+export function torrentFileError(file: { name: string; size: number }): string | null {
+  if (!file.name.toLowerCase().endsWith('.torrent')) return `${file.name} is not a .torrent file`;
+  if (file.size > MAX_TORRENT_FILE) return `${file.name} is too big for a .torrent file (over 10 MiB)`;
+  return null;
+}
+
 /** Base64 of a file's bytes, for `{ torrent }` sources. */
 export function toBase64(data: Uint8Array): string {
   let binary = '';

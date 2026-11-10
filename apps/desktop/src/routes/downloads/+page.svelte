@@ -27,6 +27,7 @@
     FILTER_LABELS,
     FILTERS,
     filterCounts,
+    isMagnet,
     pauseToggle,
     queueTarget,
     dropIndex,
@@ -46,7 +47,8 @@
   let focused = $state<string | null>(null);
   let anchor = $state<string | null>(null);
   let detailsId = $state<string | null>(null);
-  let deleteIds = $state<string[]>([]);
+  /** Torrents in the Delete dialog, named when it opened (not live). */
+  let deleteTargets = $state<{ id: string; name: string }[]>([]);
   let fileInput: HTMLInputElement | undefined = $state();
   let pickShift = false;
   let shiftHeld = false;
@@ -56,9 +58,6 @@
   let rowIds = $derived(rows.map((t) => t.id));
   let positions = $derived(new Map(byQueue(torrents.list).map((t, i) => [t.id, i + 1])));
   let selectedRows = $derived(torrents.list.filter((t) => selected.has(t.id)));
-  let deleteTargets = $derived(
-    deleteIds.map((id) => ({ id, name: torrents.list.find((t) => t.id === id)?.name ?? id })),
-  );
   let desktop = isTauri();
 
   // Drop selected ids that left the list or the current tab.
@@ -108,8 +107,12 @@
     if (index !== null) void torrents.reorder(id, index);
   }
 
+  function askDelete(ids: string[]) {
+    deleteTargets = ids.map((id) => ({ id, name: torrents.list.find((t) => t.id === id)?.name ?? id }));
+  }
+
   async function confirmDelete(ids: string[], deleteFiles: boolean) {
-    deleteIds = [];
+    deleteTargets = [];
     if (detailsId && ids.includes(detailsId)) detailsId = null;
     selected = new Set([...selected].filter((id) => !ids.includes(id)));
     await torrents.remove(ids, deleteFiles);
@@ -151,9 +154,12 @@
     } else if ((e.key === 'S' || e.key === 's') && e.shiftKey && !mod) {
       e.preventDefault();
       if (ids.length) act(ids, stopToggle(list));
+    } else if ((e.key === 'F' || e.key === 'f') && e.shiftKey && !mod) {
+      e.preventDefault();
+      if (ids.length) act(ids, 'force_start');
     } else if (e.key === 'Delete') {
       e.preventDefault();
-      if (ids.length) deleteIds = ids;
+      if (ids.length) askDelete(ids);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       detailsId = focused ?? ids[0] ?? null;
@@ -169,9 +175,14 @@
     e.preventDefault();
     const shift = 'shiftKey' in e ? e.shiftKey : shiftHeld;
     if (!magnet.trim()) return;
-    // A wrong link stays in the field so it can be fixed.
-    if (await torrents.addText(magnet, shift)) magnet = '';
-    else toasts.error('That is not a magnet link. It starts with “magnet:?”.');
+    if (!isMagnet(magnet)) {
+      // A wrong link stays in the field so it can be fixed.
+      toasts.error('That is not a magnet link. It starts with “magnet:?”.');
+      return;
+    }
+    const link = magnet;
+    // Cleared only once added; a declined notice or a failure keeps it.
+    if ((await torrents.add({ source: { magnet: link.trim() } }, { dialog: shift })) && magnet === link) magnet = '';
   }
 
   function openPicker(e: MouseEvent) {
@@ -314,7 +325,7 @@
       <button class="icon-btn" title="Move down" aria-label="Move down" onclick={() => move([...selected], 'down')}><ArrowDown size={15} /></button>
       <button class="icon-btn" title="Move to bottom" aria-label="Move to bottom" onclick={() => move([...selected], 'bottom')}><ArrowDownToLine size={15} /></button>
       <span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
-      <button class="btn-ghost px-2 py-1 text-err" onclick={() => (deleteIds = [...selected])}><Trash2 size={15} /> Delete</button>
+      <button class="btn-ghost px-2 py-1 text-err" onclick={() => askDelete([...selected])}><Trash2 size={15} /> Delete</button>
       <button class="icon-btn ml-auto" aria-label="Clear selection" onclick={() => (selected = new Set())}><X size={16} /></button>
     </div>
   {/if}
@@ -338,16 +349,16 @@
       onopen={(id) => (detailsId = id)}
       onaction={act}
       onmove={move}
-      ondelete={(ids) => (deleteIds = ids)}
+      ondelete={askDelete}
       onreorder={reorder}
       onkeydown={onListKey}
     />
     <p class="mt-2 hidden text-xs text-muted min-[720px]:block">
-      Keys: ↑/↓ select · Space pause/resume · Shift+S stop/start · Ctrl+↑/↓ move in queue · Delete · Enter details
+      Keys: ↑/↓ select · Space pause/resume · Shift+S stop/start · Shift+F force start · Ctrl+↑/↓ move in queue · Delete · Enter details · Shift+F10 or Menu key more actions
       {#if filter === 'queued'}· Drag rows to reorder{/if}
     </p>
   {/if}
 </div>
 
-<TorrentDetails id={detailsId} onclose={() => (detailsId = null)} ondelete={(ids) => (deleteIds = ids)} />
-<DeleteTorrentDialog targets={deleteTargets} onclose={() => (deleteIds = [])} onconfirm={confirmDelete} />
+<TorrentDetails id={detailsId} onclose={() => (detailsId = null)} ondelete={askDelete} />
+<DeleteTorrentDialog targets={deleteTargets} onclose={() => (deleteTargets = [])} onconfirm={confirmDelete} />

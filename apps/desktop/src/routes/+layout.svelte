@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <script lang="ts">
   import '../app.css';
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, untrack, type Snippet } from 'svelte';
   import { LoaderCircle, TriangleAlert } from '@lucide/svelte';
   import AddTorrentDialog from '$components/AddTorrentDialog.svelte';
   import ChallengeDialog from '$components/ChallengeDialog.svelte';
@@ -26,10 +26,14 @@
   /** A file is dragged over the window. */
   let dropping = $state(false);
 
+  // Also after a login in the web UI, which connects after mount.
+  $effect(() => {
+    if (app.connection === 'ready') untrack(() => torrents.start());
+  });
+
   onMount(async () => {
     await app.connect();
     if (app.connection === 'ready') {
-      torrents.start();
       await Promise.all([providers.load(), favorites.load(), lan.listen()]);
     }
   });
