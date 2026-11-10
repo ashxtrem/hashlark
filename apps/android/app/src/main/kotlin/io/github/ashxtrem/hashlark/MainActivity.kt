@@ -74,11 +74,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, hashlarkApp.lan)
-        if (savedInstanceState == null) {
-            // Start the torrent client (and its service when torrents are unfinished) before any intent adds one.
-            hashlarkApp.resumeTorrents()
-            handle(intent)
-        }
+        // Start the torrent client (and its service when torrents are unfinished) before any intent adds one.
+        // Also on a re-created activity: the service may have been stopped meanwhile; this is idempotent.
+        hashlarkApp.resumeTorrents()
+        if (savedInstanceState == null) handle(intent)
 
         // Recent searches become launcher shortcuts once a search has finished.
         lifecycleScope.launch {

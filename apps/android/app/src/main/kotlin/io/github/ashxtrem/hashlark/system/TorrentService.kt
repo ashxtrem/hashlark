@@ -63,14 +63,18 @@ class TorrentService : Service() {
     /** Calls into the core from the gates and the notification actions, run one at a time and in order. */
     private val commands = Channel<suspend (HashlarkApi) -> Unit>(Channel.UNLIMITED)
 
-    private lateinit var network: NetworkGate
-    private lateinit var power: PowerGate
+    private var network: NetworkGate? = null
+    private var power: PowerGate? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var notification: Notification? = null
 
     @Volatile
     private var lastStartId = 0
+
+    /** Set first thing in [onDestroy]; the locks are never taken again after it. */
+    @Volatile
+    private var destroyed = false
 
     /** Whether each torrent had completed at the last poll, to spot new completions. */
     private val completed = HashMap<String, Boolean>()
@@ -80,12 +84,14 @@ class TorrentService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        goForeground(build(TorrentServiceLogic.Text("Downloads", "Starting…", null)))
+        // Android may refuse (a restart from the background on 12+): stop instead of crashing.
+        if (!goForeground(build(TorrentServiceLogic.Text("Downloads", "Starting…", null)))) {
+            stopSelf()
+            return
+        }
 
-        network = NetworkGate(this) { allowed -> commands.trySend { it.setNetworkAllowed(allowed) } }
-        power = PowerGate(this) { onBattery -> commands.trySend { it.setTorrentPower(onBattery) } }
-        network.start()
-        power.start()
+        network = NetworkGate(this) { allowed -> commands.trySend { it.setNetworkAllowed(allowed) } }.also { it.start() }
+        power = PowerGate(this) { onBattery -> commands.trySend { it.setTorrentPower(onBattery) } }.also { it.start() }
 
         scope.launch {
             for (command in commands) {
@@ -103,20 +109,26 @@ class TorrentService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Every startForegroundService call must be answered with startForeground.
-        notification?.let(::goForeground)
+        val shown = notification
+        if (shown == null || !goForeground(shown)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         lastStartId = startId
         when (intent?.action) {
             ACTION_PAUSE_ALL -> commands.trySend { it.torrentBulk(BulkRequest(action = BulkAction.Pause)) }
             ACTION_STOP -> commands.trySend { it.torrentBulk(BulkRequest(action = BulkAction.Stop)) }
         }
-        return START_STICKY
+        // Not sticky: a restart from the background may be refused; opening the app resumes torrents.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        destroyed = true
         scope.cancel()
         commands.close()
-        network.stop()
-        power.stop()
+        network?.stop()
+        power?.stop()
         holdLocks(false)
         super.onDestroy()
     }
@@ -153,7 +165,7 @@ class TorrentService : Service() {
     private suspend fun tick(): Boolean {
         val api = api()
         val settings = api.settings().torrents
-        network.setUnmeteredOnly(settings.unmeteredOnly)
+        network?.setUnmeteredOnly(settings.unmeteredOnly)
         val list = api.torrents()
         val stats = api.torrentStats()
         scanNewlyCompleted(api, list)
@@ -183,7 +195,8 @@ class TorrentService : Service() {
 
     @Synchronized
     private fun holdLocks(hold: Boolean) {
-        if (hold) {
+        // A poll still running as the service is destroyed must not take a lock nothing will release.
+        if (hold && !destroyed) {
             val wake = wakeLock ?: getSystemService(PowerManager::class.java)
                 ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Hashlark:torrents")
                 ?.apply { setReferenceCounted(false) }
@@ -240,14 +253,25 @@ class TorrentService : Service() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun goForeground(notification: Notification) {
-        this.notification = notification
+    /** Returns false when Android refuses the foreground start (from the background on 12+, or no permission). */
+    private fun goForeground(notification: Notification): Boolean {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         } else {
             0
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        return try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            this.notification = notification
+            true
+        } catch (e: IllegalStateException) {
+            // ForegroundServiceStartNotAllowedException is an IllegalStateException.
+            Log.w(TAG, "could not go foreground", e)
+            false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "could not go foreground", e)
+            false
+        }
     }
 
     companion object {
