@@ -1,0 +1,64 @@
+schema: 1
+id: rutor
+name: RuTor
+description: Russian public tracker, big on films and series (titles in Russian and English)
+language: ru
+version: 1
+links:
+  - http://rutor.info/
+  - https://rutor.is/
+caps:
+  # One category at a time. Films and series are the foreign-release
+  # sections, which carry the original titles.
+  categories:
+    movies: "1"
+    tv: "4"
+    music: "2"
+    games: "8"
+    software: "9"
+    anime: "10"
+    books: "11"
+  paging:
+    start: 0
+search:
+  path: "search/{{ query.page }}/{{ query.site_categories | first | default('0') }}/000/0/{{ query.text | urlencode }}"
+  response: html
+  rows: "div#index tr.gai, div#index tr.tum"
+  fields:
+    title:
+      selector: "a[href^='/torrent/']"
+    details:
+      selector: "a[href^='/torrent/']"
+      attr: href
+    magnet:
+      selector: "a[href^='magnet:']"
+      attr: href
+    # Rows with comments have one more column, so count from the end.
+    size:
+      selector: "td:nth-last-child(2)"
+    seeders:
+      selector: "td:last-child span.green"
+    leechers:
+      selector: "td:last-child span.red"
+    # "26 Сен 26"
+    date:
+      selector: "td:first-child"
+      optional: true
+      filters:
+        - { re_replace: ["\\s+", " "] }
+        - { replace: ["Янв", "Jan"] }
+        - { replace: ["Фев", "Feb"] }
+        - { replace: ["Мар", "Mar"] }
+        - { replace: ["Апр", "Apr"] }
+        - { replace: ["Май", "May"] }
+        - { replace: ["Июн", "Jun"] }
+        - { replace: ["Июл", "Jul"] }
+        - { replace: ["Авг", "Aug"] }
+        - { replace: ["Сен", "Sep"] }
+        - { replace: ["Окт", "Oct"] }
+        - { replace: ["Ноя", "Nov"] }
+        - { replace: ["Дек", "Dec"] }
+        - trim
+        - { date: "%d %b %y" }
+test:
+  query: matrix

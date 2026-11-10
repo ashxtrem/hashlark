@@ -1,0 +1,56 @@
+schema: 1
+id: torrentdownloads
+name: Torrent Downloads
+description: General public tracker, searched through its RSS feed
+language: en
+version: 1
+links:
+  - https://www.torrentdownloads.pro/
+caps:
+  categories:
+    anime: "1"
+    books: "2"
+    games: "3"
+    movies: "4"
+    music: "5"
+    software: "7"
+    tv: "8"
+    other: "9"
+search:
+  path: rss.xml
+  params:
+    type: search
+    search: "{{ query.text }}"
+    # One category at a time; 0 means all.
+    cid: "{{ query.site_categories | first | default('0') }}"
+  response: xml
+  rows: "//item"
+  fields:
+    title:
+      path: title
+    details:
+      path: link
+      optional: true
+    info_hash:
+      path: info_hash
+    size:
+      path: size
+      optional: true
+    seeders:
+      path: seeders
+      optional: true
+    leechers:
+      path: leechers
+      optional: true
+    date:
+      path: pubDate
+      optional: true
+    # "TV Shows" -> tv
+    category:
+      path: category
+      optional: true
+      filters:
+        - lower
+        - { replace: ["tv shows", "tv"] }
+test:
+  query: matrix

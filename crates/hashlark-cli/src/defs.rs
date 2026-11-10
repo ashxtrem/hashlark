@@ -5,13 +5,17 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, bail};
 use clap::{Subcommand, ValueEnum};
 use hashlark_core::definition::spec::ResponseKind;
 use hashlark_core::definition::templates::{StarterKind, starter};
 use hashlark_core::definition::{self, Definition};
+use hashlark_core::net::{ClientOptions, Network, build_client};
 use hashlark_core::provider::DefinitionProvider;
+use hashlark_core::registry::NetworkPolicy;
+use hashlark_core::settings::NetworkSettings;
 use hashlark_core::{ProviderCtx, SearchQuery, SearchResult};
 use url::Url;
 
@@ -62,6 +66,10 @@ pub enum DefsCommand {
         /// Print every field of every result.
         #[arg(short, long)]
         verbose: bool,
+        /// With --live: use the system resolver instead of encrypted DNS
+        /// (the app's default, which gets past DNS-level blocks).
+        #[arg(long, requires = "live")]
+        system_dns: bool,
     },
     /// Print the JSON Schema of the definition format (for editors).
     Schema,
@@ -94,6 +102,7 @@ pub async fn run(command: DefsCommand) -> anyhow::Result<()> {
             url,
             settings,
             verbose,
+            system_dns,
         } => {
             let cfg: BTreeMap<String, String> = settings.into_iter().collect();
             test(TestArgs {
@@ -106,6 +115,7 @@ pub async fn run(command: DefsCommand) -> anyhow::Result<()> {
                 url,
                 cfg,
                 verbose,
+                system_dns,
             })
             .await
         }
@@ -177,6 +187,7 @@ struct TestArgs {
     url: Option<Url>,
     cfg: BTreeMap<String, String>,
     verbose: bool,
+    system_dns: bool,
 }
 
 async fn test(args: TestArgs) -> anyhow::Result<()> {
@@ -206,10 +217,7 @@ async fn test(args: TestArgs) -> anyhow::Result<()> {
             .context("the definition has no links")?;
         (body, url)
     } else if args.live {
-        let ctx = ProviderCtx {
-            config: std::sync::Arc::new(args.cfg.clone()),
-            ..ProviderCtx::new()?
-        };
+        let ctx = live_ctx(&args.cfg, args.system_dns)?;
         eprintln!("Fetching \"{text}\" from {} …", def.spec.name);
         let (body, url) = provider
             .fetch_page(&ctx, &query)
@@ -247,6 +255,27 @@ async fn test(args: TestArgs) -> anyhow::Result<()> {
         bail!("no results: check `search.rows` and the `title` field");
     }
     Ok(())
+}
+
+/// A context like the app's default network settings: names are resolved
+/// over encrypted DNS unless `system_dns` is set.
+fn live_ctx(cfg: &BTreeMap<String, String>, system_dns: bool) -> anyhow::Result<ProviderCtx> {
+    let network = if system_dns {
+        Network::direct()
+    } else {
+        Network::from_settings(&NetworkSettings::default(), None)?
+    };
+    let (options, _) = network.client_options(&NetworkPolicy::default())?;
+    let http = build_client(&options)?;
+    let http_no_redirect = build_client(&ClientOptions {
+        follow_redirects: false,
+        ..options
+    })?;
+    Ok(ProviderCtx {
+        config: Arc::new(cfg.clone()),
+        http_no_redirect,
+        ..ProviderCtx::with_client(http)
+    })
 }
 
 fn print_results(results: &[SearchResult], verbose: bool) -> anyhow::Result<()> {
