@@ -107,7 +107,7 @@ jobs:
             cp target/${{ matrix.target }}/release/hashlark-server "$name/"
             tar czf "$name.tar.gz" "$name"
           fi
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: hashlark-server-*.*
@@ -180,7 +180,7 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
           for apk in out/*.apk; do "${apksigner}" verify "$apk"; done
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: out/hashlark-*.apk
@@ -205,7 +205,7 @@ jobs:
           done
           sha256sum -- * > ../SHA256SUMS
           cat ../SHA256SUMS
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: SHA256SUMS
