@@ -11,6 +11,7 @@
 //! every API change lands in one place, the core.
 
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use hashlark_core::engine::{ProviderPatch, Session};
@@ -18,6 +19,7 @@ use hashlark_core::model::TargetKind;
 use hashlark_core::{
     AppPaths, CancellationToken, Engine, EngineOptions, Error, SearchQuery, Settings,
 };
+use hashlark_torrent::TorrentService;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use url::Url;
@@ -25,7 +27,9 @@ use url::Url;
 uniffi::setup_scaffolding!();
 
 mod lan;
+mod torrents;
 pub use lan::{HashlarkLan, LanListener, lan_local_addresses, open_lan};
+pub use torrents::max_torrent_bytes;
 
 /// Version of the core, for the About screen and the update check.
 #[uniffi::export]
@@ -243,17 +247,25 @@ pub async fn open_engine(
     data_dir: String,
     secrets: Arc<dyn SecretStore>,
 ) -> Result<Arc<HashlarkEngine>, HashlarkError> {
+    let dir = PathBuf::from(&data_dir);
     let engine = run(async move {
         let options = EngineOptions::new(Arc::new(ForeignSecrets(secrets)));
         Engine::open(AppPaths::at(data_dir), options).await
     })
     .await?;
-    Ok(Arc::new(HashlarkEngine { engine }))
+    Ok(Arc::new(HashlarkEngine {
+        engine,
+        data_dir: dir,
+        torrents: OnceLock::new(),
+    }))
 }
 
 #[derive(Debug, uniffi::Object)]
 pub struct HashlarkEngine {
     engine: Engine,
+    data_dir: PathBuf,
+    /// Set by `start_torrents`; until then the engine has no torrent client.
+    torrents: OnceLock<TorrentService>,
 }
 
 #[uniffi::export]
@@ -387,7 +399,12 @@ impl HashlarkEngine {
     ) -> Result<String, HashlarkError> {
         let settings: Settings = from_json(&settings_json)?;
         let engine = self.engine.clone();
-        run_json(async move { engine.set_settings(settings).await }).await
+        let saved = run(async move { engine.set_settings(settings).await }).await?;
+        // The settings are saved; a client that can't apply them reports its own state.
+        if let Err(e) = self.apply_torrent_settings(&saved).await {
+            tracing::warn!(error = %e, "the torrent client did not apply the new settings");
+        }
+        to_json(&saved)
     }
 
     /// State of built-in Tor (`TorStatus`).
