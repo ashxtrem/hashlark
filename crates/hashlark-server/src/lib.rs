@@ -6,17 +6,19 @@
 pub mod api;
 pub mod auth;
 pub mod error;
+pub mod torrents;
 pub mod torznab;
 pub mod ui;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::routing::get;
 use axum::{Json, Router, middleware};
 use hashlark_core::Engine;
+use hashlark_torrent::TorrentService;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::OpenApi;
@@ -34,6 +36,7 @@ pub const API_BASE: &str = "/api/v1";
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub engine: Engine,
+    pub torrents: TorrentService,
     pub auth: Arc<AuthConfig>,
     pub host_policy: Arc<HostPolicy>,
     pub failures: Arc<auth::FailureLimiter>,
@@ -94,6 +97,7 @@ impl ServerConfig {
         (name = "api keys", description = "Keys for the headless server"),
         (name = "settings"),
         (name = "history"),
+        (name = "torrents", description = "The built-in torrent client"),
         (name = "system"),
     )
 )]
@@ -144,6 +148,26 @@ fn protected_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(api::refresh_trackers))
         .routes(routes!(api::list_api_keys, api::create_api_key))
         .routes(routes!(api::revoke_api_key))
+        .merge(torrent_routes())
+}
+
+/// `/torrents*`. Adding a torrent takes base64 `.torrent` bytes, so its
+/// route gets a body limit above axum's 2 MB default.
+fn torrent_routes() -> OpenApiRouter<AppState> {
+    let add = OpenApiRouter::new()
+        .routes(routes!(torrents::list_torrents, torrents::add_torrent))
+        .layer(DefaultBodyLimit::max(torrents::ADD_BODY_LIMIT));
+    add.routes(routes!(torrents::torrent_events))
+        .routes(routes!(torrents::torrent_stats))
+        .routes(routes!(torrents::bulk_torrents))
+        .routes(routes!(torrents::create_torrent))
+        .routes(routes!(
+            torrents::get_torrent,
+            torrents::update_torrent,
+            torrents::remove_torrent
+        ))
+        .routes(routes!(torrents::torrent_peers))
+        .routes(routes!(torrents::torrent_file))
 }
 
 /// The OpenAPI document for the API.
@@ -154,9 +178,10 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
 }
 
 /// Builds the full router.
-pub fn router(engine: Engine, config: ServerConfig) -> Router {
+pub fn router(engine: Engine, torrents: TorrentService, config: ServerConfig) -> Router {
     let state = AppState {
         engine,
+        torrents,
         auth: Arc::new(config.auth),
         host_policy: Arc::new(config.host_policy),
         failures: Arc::default(),
@@ -258,11 +283,11 @@ impl LocalServer {
 
 /// Starts the API on a random loopback port with a fresh token, for the
 /// desktop app.
-pub async fn serve_local(engine: Engine) -> std::io::Result<LocalServer> {
+pub async fn serve_local(engine: Engine, torrents: TorrentService) -> std::io::Result<LocalServer> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
     let addr = listener.local_addr()?;
     let token = AuthConfig::random_token();
-    let app = router(engine, ServerConfig::desktop(token.clone()));
+    let app = router(engine, torrents, ServerConfig::desktop(token.clone()));
     let handle = tokio::spawn(async move {
         let app = app.into_make_service_with_connect_info::<SocketAddr>();
         if let Err(e) = axum::serve(listener, app).await {

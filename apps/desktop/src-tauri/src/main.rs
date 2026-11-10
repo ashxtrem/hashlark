@@ -14,6 +14,8 @@ use hashlark_core::engine::EngineOptions;
 use hashlark_core::secrets::{KeychainSecretStore, SecretStore};
 use hashlark_core::{AppPaths, Engine};
 use hashlark_server::{LocalServer, serve_local};
+use hashlark_torrent::paths::{desktop_download_dir, server_download_dir};
+use hashlark_torrent::{PathPolicy, ServiceOptions, TorrentService};
 use tauri::{Manager, RunEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
@@ -37,7 +39,18 @@ async fn start_backend() -> anyhow::Result<Backend> {
         engine.watch_definitions(dir.into()).await?;
     }
     engine.start_background_tasks();
-    let server = serve_local(engine.clone()).await?;
+    let download_dir = desktop_download_dir().unwrap_or_else(|| server_download_dir(&data_dir));
+    let torrents = TorrentService::new(
+        engine.clone(),
+        ServiceOptions {
+            path_policy: PathPolicy::Unrestricted,
+            ..ServiceOptions::new(&data_dir, download_dir)
+        },
+    );
+    if let Err(err) = torrents.start().await {
+        tracing::error!(%err, "the torrent client did not start");
+    }
+    let server = serve_local(engine.clone(), torrents).await?;
     tracing::info!(api = %server.base_url(), "backend started");
     Ok(Backend {
         engine,

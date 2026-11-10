@@ -403,7 +403,11 @@ export interface paths {
         };
         /** Current settings. */
         get: operations["get_settings"];
-        /** Replaces all settings. Fields left out take their defaults. */
+        /**
+         * Replaces all settings. Fields left out take their defaults. On the
+         *     headless server, `torrents.download_dir` and `torrents.watch_dir` must be
+         *     inside the configured roots (`400 invalid` otherwise).
+         */
         put: operations["put_settings"];
         post?: never;
         delete?: never;
@@ -423,6 +427,161 @@ export interface paths {
         put?: never;
         /** Fetches a page for the definition editor's element picker. */
         post: operations["fetch_page"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every torrent, in queue order. */
+        get: operations["list_torrents"];
+        put?: never;
+        /**
+         * Adds a torrent from a magnet link, base64 `.torrent` bytes or a search
+         *     result id. A known info hash returns the existing torrent with
+         *     `already: true`. `400 invalid` when the built-in client is off or
+         *     `save_dir` is outside the allowed folders.
+         */
+        post: operations["add_torrent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pauses, resumes, stops, starts or removes many torrents (every torrent
+         *     when `ids` is absent), or switches turtle mode.
+         */
+        post: operations["bulk_torrents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates a torrent from a file or folder and starts seeding it. */
+        post: operations["create_torrent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Streams live updates as Server-Sent Events.
+         * @description Event names: `snapshot` (every second: `{ session, torrents }`),
+         *     `completed` and `error`. Each event's data is the JSON of a
+         *     `TorrentEvent`.
+         */
+        get: operations["torrent_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Session-wide numbers: speeds, listen port, counts per state. */
+        get: operations["torrent_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One torrent with its files, trackers and limits. */
+        get: operations["get_torrent"];
+        put?: never;
+        post?: never;
+        /** Removes a torrent, and its files with `delete_files=true`. */
+        delete: operations["remove_torrent"];
+        options?: never;
+        head?: never;
+        /**
+         * Changes a torrent: run action, selected files, limits, seeding limits
+         *     or queue position.
+         */
+        patch: operations["update_torrent"];
+        trace?: never;
+    };
+    "/torrents/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The `.torrent` file of a torrent that has its metadata. */
+        get: operations["torrent_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/torrents/{id}/peers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connected peers of a torrent. */
+        get: operations["torrent_peers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -487,6 +646,33 @@ export interface components {
             repo: components["schemas"]["RepoView"];
             sync: components["schemas"]["SyncReport"];
         };
+        /** @description Body of `add`. */
+        AddRequest: {
+            /** @description File indices to download; all when absent. */
+            files?: number[] | null;
+            /** @description Add in the `paused` run mode. */
+            paused?: boolean;
+            /** @description Folder to save into; the default download folder when absent. */
+            save_dir?: string | null;
+            source: components["schemas"]["AddSource"];
+        };
+        /** @description Result of `add`. */
+        AddResponse: {
+            /** @description The info hash was already in the client; nothing was added. */
+            already: boolean;
+            torrent: components["schemas"]["TorrentSummary"];
+        };
+        /** @description Where a torrent to add comes from. */
+        AddSource: {
+            /** @description A `magnet:` link. `x.pe` peer addresses are used as initial peers. */
+            magnet: string;
+        } | {
+            /** @description A `.torrent` file, base64-encoded. */
+            torrent: string;
+        } | {
+            /** @description A result of a recent search, or a favourite. */
+            result_id: string;
+        };
         ApiKeyInfo: {
             /**
              * Format: int64
@@ -497,6 +683,31 @@ export interface components {
             /** Format: int64 */
             last_used_at?: number | null;
             name: string;
+        };
+        /** @description An action on many torrents. */
+        BulkAction: "pause" | "resume" | "stop" | "start" | "force_start" | {
+            remove: {
+                delete_files?: boolean;
+            };
+        } | {
+            /** @description Turn turtle mode (alternative speed) on or off; `ids` is ignored. */
+            turtle: boolean;
+        };
+        /** @description One failure of a bulk action. */
+        BulkFailure: {
+            id: string;
+            message: string;
+        };
+        /** @description Body of `bulk`. */
+        BulkRequest: {
+            action: components["schemas"]["BulkAction"];
+            /** @description Torrents to act on; every torrent when absent. */
+            ids?: string[] | null;
+        };
+        /** @description Result of `bulk`. */
+        BulkResult: {
+            failed: components["schemas"]["BulkFailure"][];
+            ok: string[];
         };
         /** @description What kinds of query a provider supports. */
         Capabilities: {
@@ -526,6 +737,21 @@ export interface components {
         CreateApiKeyRequest: {
             /** @description What the key is for, e.g. "Phone" or "Sonarr". */
             name: string;
+        };
+        /** @description Body of `create`. */
+        CreateRequest: {
+            name?: string | null;
+            /** @description File or folder to share. */
+            path: string;
+            /** Format: int32 */
+            piece_length?: number | null;
+            trackers?: string[];
+        };
+        /** @description Result of `create`. */
+        CreatedTorrent: {
+            already: boolean;
+            magnet: string;
+            torrent: components["schemas"]["TorrentSummary"];
         };
         /** @description Result of checking a definition without saving it. */
         DefinitionCheck: {
@@ -659,6 +885,11 @@ export interface components {
              */
             ts: number;
         };
+        /**
+         * @description When the device is kept awake.
+         * @enum {string}
+         */
+        KeepAwake: "off" | "downloading" | "active";
         MagnetSettings: {
             /**
              * @description Add the default trackers to magnets that already list their own.
@@ -750,6 +981,34 @@ export interface components {
         NewApiKey: components["schemas"]["ApiKeyInfo"] & {
             key: string;
         };
+        /**
+         * @description What to do when the device runs on battery.
+         * @enum {string}
+         */
+        OnBattery: "nothing" | "alt_speed" | "pause";
+        /**
+         * @description Where a torrent came from (the `source` column).
+         * @enum {string}
+         */
+        Origin: "magnet" | "torrent" | "result" | "created" | "watch";
+        /** @description One connected peer. */
+        PeerInfo: {
+            addr: string;
+            client?: string | null;
+            /** @description `tcp`, `utp` or `socks`. */
+            conn_kind?: string | null;
+            /**
+             * Format: int64
+             * @description Bytes received from this peer in this session.
+             */
+            downloaded: number;
+            state: string;
+            /**
+             * Format: int64
+             * @description Bytes sent to this peer in this session.
+             */
+            uploaded: number;
+        };
         PreviewDefinitionRequest: {
             categories?: components["schemas"]["Category"][];
             query: string;
@@ -828,6 +1087,13 @@ export interface components {
             settings: components["schemas"]["SettingView"][];
             source: components["schemas"]["ProviderSource"];
         };
+        /** @description A queue move: a step, or an absolute 0-based index (drag reorder). */
+        QueueMove: components["schemas"]["QueueStep"] | number;
+        /**
+         * @description A relative queue move.
+         * @enum {string}
+         */
+        QueueStep: "top" | "up" | "down" | "bottom";
         RefreshTrackersResponse: {
             /** @description Trackers fetched from the list URL. */
             fetched: number;
@@ -860,6 +1126,16 @@ export interface components {
          * @enum {string}
          */
         Route: "default" | "direct" | "proxy" | "tor";
+        /**
+         * @description How the user wants a torrent to run (plan §3.3).
+         * @enum {string}
+         */
+        RunMode: "auto" | "paused" | "stopped" | "forced";
+        /**
+         * @description What the weekly schedule says now.
+         * @enum {string}
+         */
+        ScheduleMode: "normal" | "alt" | "seed_only" | "off";
         /**
          * @description Progress of a running search, in the order it happens. Front ends render
          *     these as they arrive; the HTTP API forwards them as SSE events.
@@ -963,6 +1239,19 @@ export interface components {
             /** @default true */
             save_history: boolean;
         };
+        /** @description Per-torrent seeding limits. `None` uses the global setting. */
+        SeedLimits: {
+            /**
+             * Format: int32
+             * @default null
+             */
+            minutes: number | null;
+            /**
+             * Format: float
+             * @default null
+             */
+            ratio: number | null;
+        };
         /** @description Cookies from a browser check the user completed on the site. */
         Session: {
             cookies: components["schemas"]["SessionCookie"][];
@@ -980,6 +1269,26 @@ export interface components {
         SessionCookie: {
             name: string;
             value: string;
+        };
+        /** @description Session-wide numbers. */
+        SessionStats: {
+            counts: components["schemas"]["StateCounts"];
+            /** Format: int64 */
+            dht_nodes?: number | null;
+            /** Format: int64 */
+            down_bps: number;
+            /** Format: int32 */
+            listen_port?: number | null;
+            network_allowed: boolean;
+            on_battery: boolean;
+            /** Format: int32 */
+            peers_connected: number;
+            /** @description The client is on and its session runs. */
+            running: boolean;
+            schedule_mode: components["schemas"]["ScheduleMode"];
+            turtle: boolean;
+            /** Format: int64 */
+            up_bps: number;
         };
         /** @enum {string} */
         SettingKind: "text" | "password" | "checkbox" | "select";
@@ -1041,6 +1350,43 @@ export interface components {
             search: components["schemas"]["SearchSettings"];
             /**
              * @default {
+             *       "alt_limits": {
+             *         "down_kib": 1024,
+             *         "up_kib": 256
+             *       },
+             *       "ask_on_add": false,
+             *       "blocklist_url": null,
+             *       "close_to_tray": true,
+             *       "dht": true,
+             *       "download_dir": null,
+             *       "enabled": true,
+             *       "keep_awake": "downloading",
+             *       "limits": {
+             *         "down_kib": null,
+             *         "up_kib": null
+             *       },
+             *       "listen_port": 0,
+             *       "lsd": true,
+             *       "max_active_downloads": 3,
+             *       "max_active_seeds": 5,
+             *       "notice_accepted": false,
+             *       "on_battery": "alt_speed",
+             *       "peer_limit_global": 1000,
+             *       "peer_limit_torrent": 200,
+             *       "proxy": null,
+             *       "schedule": null,
+             *       "seed_minutes": null,
+             *       "seed_ratio": 1,
+             *       "turtle": false,
+             *       "unmetered_only": true,
+             *       "upnp": true,
+             *       "utp": true,
+             *       "watch_dir": null
+             *     }
+             */
+            torrents: components["schemas"]["TorrentSettings"];
+            /**
+             * @default {
              *       "first_run_done": false,
              *       "theme": "system"
              *     }
@@ -1060,6 +1406,38 @@ export interface components {
          * @enum {string}
          */
         SortOrder: "relevance" | "title" | "seeders" | "peers" | "size" | "date";
+        /** @description Speed limits in KiB/s. `None` means unlimited. */
+        SpeedLimits: {
+            /**
+             * Format: int32
+             * @default null
+             */
+            down_kib: number | null;
+            /**
+             * Format: int32
+             * @default null
+             */
+            up_kib: number | null;
+        };
+        /** @description Torrents per state, for the filter tabs. */
+        StateCounts: {
+            /** Format: int32 */
+            all: number;
+            /** Format: int32 */
+            downloading: number;
+            /** Format: int32 */
+            error: number;
+            /** Format: int32 */
+            finished: number;
+            /** Format: int32 */
+            paused: number;
+            /** Format: int32 */
+            queued: number;
+            /** Format: int32 */
+            seeding: number;
+            /** Format: int32 */
+            stopped: number;
+        };
         StoredDefinition: {
             id: string;
             /** @description The repository it came from; `None` if imported by hand. */
@@ -1135,6 +1513,272 @@ export interface components {
             ready: boolean;
             running: boolean;
         };
+        /**
+         * @description Run-mode changes (plan §2: Pause ≠ Stop, Force start).
+         * @enum {string}
+         */
+        TorrentAction: "pause" | "resume" | "stop" | "start" | "force_start";
+        /** @description Everything about one torrent. */
+        TorrentDetails: components["schemas"]["TorrentSummary"] & {
+            files: components["schemas"]["TorrentFile"][];
+            /** @description Per-torrent speed limits in KiB/s. `None` is unlimited. */
+            limits: components["schemas"]["SpeedLimits"];
+            magnet?: string | null;
+            /**
+             * Format: int32
+             * @description Own connection limit. `None` uses the global per-torrent limit.
+             */
+            peer_limit?: number | null;
+            result_id?: string | null;
+            seed: components["schemas"]["SeedLimits"];
+            /** Format: int64 */
+            seeding_since?: number | null;
+            /** @description Tracker URLs (librqbit reports no per-tracker status). */
+            trackers: string[];
+        };
+        /** @description One live-update event (`subscribe`). */
+        TorrentEvent: {
+            session: components["schemas"]["SessionStats"];
+            torrents: components["schemas"]["TorrentSummary"][];
+            /** @enum {string} */
+            type: "snapshot";
+        } | {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            type: "completed";
+        } | {
+            id: string;
+            message: string;
+            /** @enum {string} */
+            type: "error";
+        };
+        /** @description One file of a torrent. */
+        TorrentFile: {
+            /** Format: int64 */
+            have: number;
+            /** @description Index used by `files` in [`TorrentPatch`] and [`AddRequest`]. */
+            index: number;
+            /** @description Path inside the torrent, `/`-separated. */
+            path: string;
+            selected: boolean;
+            /** Format: int64 */
+            size: number;
+        };
+        /** @description Body of `update`. Every field is optional. */
+        TorrentPatch: {
+            /** @default null */
+            action: components["schemas"]["TorrentAction"] | null;
+            /**
+             * @description Selected file indices (at least one).
+             * @default null
+             */
+            files: number[] | null;
+            /** @default null */
+            limits: components["schemas"]["SpeedLimits"] | null;
+            /**
+             * Format: int32
+             * @description Own connection limit, 10–2000; 0 returns to the global default.
+             * @default null
+             */
+            peer_limit: number | null;
+            /** @default null */
+            queue_pos: components["schemas"]["QueueMove"] | null;
+            /** @default null */
+            seed: components["schemas"]["SeedLimits"] | null;
+        };
+        /** @description Settings of the built-in torrent client. */
+        TorrentSettings: {
+            /**
+             * @description Limits used by turtle mode and the schedule's `a` cells.
+             * @default {
+             *       "down_kib": 1024,
+             *       "up_kib": 256
+             *     }
+             */
+            alt_limits: components["schemas"]["SpeedLimits"];
+            /**
+             * @description Ask where to save each time a torrent is added.
+             * @default false
+             */
+            ask_on_add: boolean;
+            /**
+             * @description IP blocklist to download and apply.
+             * @default null
+             */
+            blocklist_url: string | null;
+            /**
+             * @description Desktop: closing the window keeps the client running in the tray.
+             * @default true
+             */
+            close_to_tray: boolean;
+            /** @default true */
+            dht: boolean;
+            /**
+             * @description Where downloads are saved. `None` means the OS downloads folder.
+             *     Separate from `downloads.torrent_dir`, which holds `.torrent` files.
+             * @default null
+             */
+            download_dir: string | null;
+            /**
+             * @description Master switch for the built-in client.
+             * @default true
+             */
+            enabled: boolean;
+            /** @default downloading */
+            keep_awake: components["schemas"]["KeepAwake"];
+            /**
+             * @description Normal speed limits.
+             * @default {
+             *       "down_kib": null,
+             *       "up_kib": null
+             *     }
+             */
+            limits: components["schemas"]["SpeedLimits"];
+            /**
+             * Format: int32
+             * @description Listen port. 0 means pick one on first start and save it.
+             * @default 0
+             */
+            listen_port: number;
+            /** @default true */
+            lsd: boolean;
+            /**
+             * Format: int32
+             * @default 3
+             */
+            max_active_downloads: number;
+            /**
+             * Format: int32
+             * @default 5
+             */
+            max_active_seeds: number;
+            /**
+             * @description The user has accepted the first-use notice.
+             * @default false
+             */
+            notice_accepted: boolean;
+            /** @default alt_speed */
+            on_battery: components["schemas"]["OnBattery"];
+            /**
+             * Format: int32
+             * @default 1000
+             */
+            peer_limit_global: number;
+            /**
+             * Format: int32
+             * @default 200
+             */
+            peer_limit_torrent: number;
+            /**
+             * @description SOCKS5 proxy for torrent traffic.
+             * @default null
+             */
+            proxy: string | null;
+            /** @default null */
+            schedule: components["schemas"]["WeekGrid"] | null;
+            /**
+             * Format: int32
+             * @description Stop seeding after this many minutes. `None` means no time limit.
+             * @default null
+             */
+            seed_minutes: number | null;
+            /**
+             * Format: float
+             * @description Stop seeding at this share ratio. `None` seeds forever.
+             * @default 1
+             */
+            seed_ratio: number | null;
+            /**
+             * @description Turtle mode: apply `alt_limits` now.
+             * @default false
+             */
+            turtle: boolean;
+            /**
+             * @description Android: only download on unmetered networks.
+             * @default true
+             */
+            unmetered_only: boolean;
+            /** @default true */
+            upnp: boolean;
+            /** @default true */
+            utp: boolean;
+            /**
+             * @description Folder watched for `.torrent` files to add.
+             * @default null
+             */
+            watch_dir: string | null;
+        };
+        /**
+         * @description What a torrent is doing now.
+         * @enum {string}
+         */
+        TorrentState: "metadata" | "checking" | "downloading" | "seeding" | "queued" | "paused" | "stopped" | "finished" | "error";
+        /** @description One row of the torrent list. */
+        TorrentSummary: {
+            /** Format: int64 */
+            added_at: number;
+            /** Format: int64 */
+            completed_at?: number | null;
+            /** @description The seed limit was reached. */
+            done: boolean;
+            /** Format: int64 */
+            down_bps: number;
+            /**
+             * Format: int64
+             * @description Bytes downloaded over all runs.
+             */
+            downloaded_total: number;
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Seconds to completion at the current speed.
+             */
+            eta_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Bytes of the selected files we have.
+             */
+            have: number;
+            /** @description Info hash, 40 lowercase hex characters. */
+            id: string;
+            name: string;
+            /**
+             * Format: int32
+             * @description Connected peers.
+             */
+            peers: number;
+            /**
+             * Format: double
+             * @description 0.0–1.0 of the selected files.
+             */
+            progress: number;
+            /** Format: int64 */
+            queue_pos: number;
+            /** Format: double */
+            ratio: number;
+            run_mode: components["schemas"]["RunMode"];
+            save_dir: string;
+            /**
+             * Format: int32
+             * @description Connected peers that have the whole torrent.
+             */
+            seeds: number;
+            /**
+             * Format: int64
+             * @description Bytes of the selected files (0 until the metadata is known).
+             */
+            size: number;
+            source: components["schemas"]["Origin"];
+            state: components["schemas"]["TorrentState"];
+            /** Format: int64 */
+            up_bps: number;
+            /**
+             * Format: int64
+             * @description Bytes uploaded over all runs.
+             */
+            uploaded_total: number;
+        };
         UiSettings: {
             /**
              * @description Set once the user has finished the first-run screen.
@@ -1151,6 +1795,11 @@ export interface components {
              */
             check_for_updates: boolean;
         };
+        /**
+         * @description A week of speed modes, one cell per hour: 168 characters, Monday 00:00
+         *     first. `n` normal, `a` alternative limits, `s` seed only, `o` off.
+         */
+        WeekGrid: string;
         YamlText: {
             yaml: string;
         };
@@ -2137,6 +2786,370 @@ export interface operations {
                 };
             };
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_torrents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TorrentSummary"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_torrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    bulk_torrents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_torrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedTorrent"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    torrent_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of TorrentEvent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["TorrentEvent"];
+                };
+            };
+        };
+    };
+    torrent_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionStats"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_torrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Info hash, 40 hex characters */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TorrentDetails"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_torrent: {
+        parameters: {
+            query?: {
+                /** @description Also delete the downloaded files (default false). */
+                delete_files?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Info hash, 40 hex characters */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_torrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Info hash, 40 hex characters */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TorrentPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TorrentDetails"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    torrent_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Info hash, 40 hex characters */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The .torrent file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-bittorrent": number[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    torrent_peers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Info hash, 40 hex characters */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeerInfo"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

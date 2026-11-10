@@ -26,6 +26,20 @@ pub struct FileConfig {
     pub definitions_dir: Option<PathBuf>,
     /// Log filter, e.g. `info` or `hashlark_core=debug,info`.
     pub log: Option<String>,
+    /// The built-in torrent client.
+    pub torrents: Option<TorrentsConfig>,
+}
+
+/// `[torrents]`: where the headless server's torrent client may write.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TorrentsConfig {
+    /// Default download folder (default: `<data dir>/downloads`).
+    pub download_dir: Option<PathBuf>,
+    /// Folders the client may download into, watch and create torrents
+    /// from; `download_dir` and `watch_dir` must be inside one (default:
+    /// `[download_dir]`).
+    pub roots: Option<Vec<PathBuf>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -60,6 +74,31 @@ mod tests {
         assert_eq!(config.bind.unwrap().port(), 8787);
         assert_eq!(config.secrets, Some(SecretsBackend::File));
         assert!(config.tls.is_none());
+    }
+
+    #[test]
+    fn parses_torrents_table() {
+        let config: FileConfig = toml::from_str(
+            "[torrents]
+download_dir = \"/downloads\"
+roots = [\"/downloads\", \"/media\"]
+",
+        )
+        .unwrap();
+        let torrents = config.torrents.unwrap();
+        assert_eq!(torrents.download_dir, Some(PathBuf::from("/downloads")));
+        assert_eq!(
+            torrents.roots,
+            Some(vec![PathBuf::from("/downloads"), PathBuf::from("/media")])
+        );
+        assert!(toml::from_str::<FileConfig>("").unwrap().torrents.is_none());
+        assert!(
+            toml::from_str::<FileConfig>(
+                "[torrents]
+rootz = []"
+            )
+            .is_err()
+        );
     }
 
     #[test]
