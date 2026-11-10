@@ -36,6 +36,9 @@ import io.github.ashxtrem.hashlark.core.MergedResult
 import io.github.ashxtrem.hashlark.core.SortDirection
 import io.github.ashxtrem.hashlark.core.SortOrder
 import io.github.ashxtrem.hashlark.ui.ResultActions
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsLogic
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** Test tag of the results list. */
 const val RESULTS_TAG = "results"
@@ -71,6 +74,9 @@ fun ResultsList(
         val fontScale = LocalDensity.current.fontScale
         val showExtras = density != RowDensity.Narrow || (maxWidth >= 400.dp && fontScale <= 1.3f)
         val restoreFocus = remember { FocusRequester() }
+        val inClient by actions.inDownloads.collectAsStateWithLifecycle()
+        val settings by actions.settings.collectAsStateWithLifecycle()
+        val builtInClient = settings?.torrents?.enabled == true
         LazyColumn(state = state, contentPadding = contentPadding, modifier = Modifier.testTag(RESULTS_TAG)) {
             if (density == RowDensity.Wide) {
                 item(key = "header", contentType = "header") { TableHeader(order, direction, onSort) }
@@ -94,6 +100,8 @@ fun ResultsList(
                     onClick = { onSelect(result) },
                     onToggleFavorite = { onToggleFavorite(result) },
                     focusRequester = if (restoring) restoreFocus else null,
+                    inDownloads = builtInClient && DownloadsLogic.inClient(result.primary.infoHash, inClient),
+                    builtInClient = builtInClient,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }

@@ -125,6 +125,10 @@ fun ResultRow(
     onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** The result's info hash is already in the built-in client. */
+    inDownloads: Boolean = false,
+    /** The built-in client is on: the menu offers Download instead of Open in torrent client. */
+    builtInClient: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val dragText = remember(result) { actions.dragText(result) }
@@ -188,7 +192,12 @@ fun ResultRow(
                 this.selected = selected
                 // The long-press menu, reachable from TalkBack's actions menu.
                 customActions = buildList {
-                    add(CustomAccessibilityAction("Open in torrent client") { actions.open(result); true })
+                    if (builtInClient) {
+                        add(CustomAccessibilityAction("Download") { actions.open(result); true })
+                        add(CustomAccessibilityAction("Download with options") { actions.open(result, withOptions = true); true })
+                    } else {
+                        add(CustomAccessibilityAction("Open in torrent client") { actions.open(result); true })
+                    }
                     if (result.hasMagnet) {
                         add(CustomAccessibilityAction("Copy magnet link") { actions.copyMagnet(result); true })
                         add(CustomAccessibilityAction("Share magnet link") { actions.share(result); true })
@@ -201,8 +210,8 @@ fun ResultRow(
     ) {
         Box {
             when (density) {
-                RowDensity.Wide -> WideRow(result, providerNames, favorite, onToggleFavorite)
-                else -> CompactRow(result, providerNames, showExtras, favorite, onToggleFavorite)
+                RowDensity.Wide -> WideRow(result, providerNames, favorite, onToggleFavorite, inDownloads)
+                else -> CompactRow(result, providerNames, showExtras, favorite, onToggleFavorite, inDownloads)
             }
             ResultMenu(
                 expanded = menuOpen,
@@ -212,6 +221,7 @@ fun ResultRow(
                 actions = actions,
                 onToggleFavorite = onToggleFavorite,
                 onDetails = onClick,
+                builtInClient = builtInClient,
             )
         }
     }
@@ -228,6 +238,7 @@ private fun CompactRow(
     showExtras: Boolean,
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
+    inDownloads: Boolean,
 ) {
     val p = result.primary
     Row(
@@ -246,6 +257,7 @@ private fun CompactRow(
                 Fact(Format.bytes(p.sizeBytes), strong = true)
                 Fact(seedsText(result.seeders))
                 Fact(sourcesText(result.sources.size))
+                if (inDownloads) InDownloadsBadge()
             }
             if (showExtras) {
                 val provider = providerNames[p.providerId] ?: p.providerId
@@ -277,6 +289,7 @@ private fun WideRow(
     providerNames: Map<String, String>,
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
+    inDownloads: Boolean,
 ) {
     val p = result.primary
     Row(
@@ -291,13 +304,17 @@ private fun WideRow(
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
             )
-            Text(
-                listOfNotNull(p.category?.label ?: "Other", providerNames[p.providerId] ?: p.providerId).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    listOfNotNull(p.category?.label ?: "Other", providerNames[p.providerId] ?: p.providerId).joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (inDownloads) InDownloadsBadge()
+            }
         }
         Cell(Format.bytes(p.sizeBytes), TableColumns.size)
         Cell(Format.count(result.seeders), TableColumns.seeders, color = MaterialTheme.colorScheme.primary)
@@ -341,9 +358,16 @@ private fun ResultMenu(
     actions: ResultActions,
     onToggleFavorite: () -> Unit,
     onDetails: () -> Unit,
+    builtInClient: Boolean,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        MenuItem("Open in torrent client", onDismiss) { actions.open(result) }
+        if (builtInClient) {
+            MenuItem("Download", onDismiss) { actions.open(result) }
+            // The Add sheet: folder and Start paused for this one download.
+            MenuItem("Download with options…", onDismiss) { actions.open(result, withOptions = true) }
+        } else {
+            MenuItem("Open in torrent client", onDismiss) { actions.open(result) }
+        }
         MenuItem("Details", onDismiss, onDetails)
         if (result.hasMagnet) {
             MenuItem("Copy magnet link", onDismiss) { actions.copyMagnet(result) }
@@ -356,6 +380,20 @@ private fun ResultMenu(
         }
         MenuItem(if (favorite) "Remove from favourites" else "Save to favourites", onDismiss, onToggleFavorite)
         result.primary.detailsUrl?.let { url -> MenuItem("View on site", onDismiss) { actions.viewOnSite(url) } }
+    }
+}
+
+/** Marks a result whose info hash is already in the built-in client. */
+@Composable
+fun InDownloadsBadge() {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
+        Text(
+            "In downloads",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }
 

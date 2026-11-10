@@ -51,6 +51,29 @@ sealed interface AppEvent {
     data class AddTorrent(val source: AddSource) : AppEvent
 }
 
+/** Where an add stands. */
+enum class AddStage {
+    /** The one-time notice about sharing pieces and showing the IP address. */
+    Notice,
+
+    /** The Add sheet: folder and "Start paused". */
+    Options,
+
+    /** Asking for notifications (Android 13+) and storage (Android 8-9), then adding. */
+    Permissions,
+}
+
+/** An add on its way through [AppViewModel.requestAdd]. */
+data class PendingAdd(
+    val request: AddRequest,
+    /** A name to show in the sheet, when known (a result's title). */
+    val title: String?,
+    /** The paired device that sent the link, for the message. */
+    val from: String?,
+    val withOptions: Boolean,
+    val stage: AddStage,
+)
+
 /**
  * State shared by every screen: settings, the provider list, messages for the
  * snackbar, update notice. It lives in the activity's ViewModel store, so it
@@ -188,24 +211,152 @@ class AppViewModel(
 
     // ----- torrents ---------------------------------------------------------------------
 
+    private val _pendingAdd = MutableStateFlow<PendingAdd?>(null)
+
+    /** The add that waits for the one-time notice, the Add sheet or the permission prompts. */
+    val pendingAdd: StateFlow<PendingAdd?> = _pendingAdd.asStateFlow()
+
+    private val _torrentIds = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Info hashes in the built-in client, for the "In downloads" badge on results. */
+    val torrentIds: StateFlow<Set<String>> = _torrentIds.asStateFlow()
+
+    /** Permissions are asked at most once per run, so a refusal isn't asked again on every add. */
+    private var permissionsAsked = false
+
+    /** Whether results go to the built-in client (else to the user's torrent app). */
+    val builtInClient: Boolean get() = _settings.value?.torrents?.enabled == true
+
     /**
-     * Adds a torrent to the built-in client with the default options and starts the
-     * download service. The one-time notice, `ask_on_add` and the Add sheet build on this.
+     * Starts the add flow: the one-time notice (first add only), then the Add sheet when
+     * `ask_on_add` is on or [withOptions] (a long-press), then the permission prompts, then
+     * the add itself. Intents, LAN links and results all come through here.
      */
-    fun addTorrent(source: AddSource) {
+    fun requestAdd(source: AddSource, title: String? = null, withOptions: Boolean = false, from: String? = null) {
+        val torrents = _settings.value?.torrents ?: return
+        val options = withOptions || torrents.askOnAdd
+        _pendingAdd.value = PendingAdd(
+            request = AddRequest(source),
+            title = title,
+            from = from,
+            withOptions = options,
+            stage = when {
+                !torrents.noticeAccepted -> AddStage.Notice
+                options -> AddStage.Options
+                else -> AddStage.Permissions
+            },
+        )
+    }
+
+    /** The user accepted the one-time notice; it is stored so it never shows again. */
+    fun acceptNotice() {
+        val pending = _pendingAdd.value ?: return
+        viewModelScope.launch {
+            val current = _settings.value ?: return@launch
+            saveSettings(current.copy(torrents = current.torrents.copy(noticeAccepted = true))) ?: return@launch
+            _pendingAdd.value = pending.copy(stage = if (pending.withOptions) AddStage.Options else AddStage.Permissions)
+        }
+    }
+
+    /** The Add sheet was confirmed with these options. */
+    fun confirmAddOptions(saveDir: String?, paused: Boolean) {
+        val pending = _pendingAdd.value ?: return
+        _pendingAdd.value = pending.copy(
+            request = pending.request.copy(saveDir = saveDir?.trim()?.ifBlank { null }, paused = paused),
+            stage = AddStage.Permissions,
+        )
+    }
+
+    fun cancelAdd() {
+        _pendingAdd.value = null
+    }
+
+    /**
+     * Whether to show the permission prompts for this add: only the first time in a run, so a
+     * refusal isn't asked again on every add (and a rotation doesn't ask twice).
+     */
+    fun takePermissionPrompt(): Boolean = (!permissionsAsked).also { permissionsAsked = true }
+
+    /**
+     * The permission prompts are over: adds the torrent. [publicDir] is `Download/Hashlark` when
+     * storage access was just granted (Android 8-9); the client resolved its default folder before
+     * that, so the folder is saved as the download folder for the grant to count at once.
+     */
+    fun finishAdd(publicDir: String? = null) {
+        permissionsAsked = true
+        val pending = _pendingAdd.value ?: return
+        _pendingAdd.value = null
+        viewModelScope.launch {
+            val current = _settings.value
+            if (publicDir != null && current != null && current.torrents.downloadDir == null) {
+                saveSettings(current.copy(torrents = current.torrents.copy(downloadDir = publicDir)))
+            }
+            add(pending)
+        }
+    }
+
+    private suspend fun add(pending: PendingAdd) {
+        try {
+            val response = torrentApi().addTorrent(pending.request)
+            val torrent = response.torrent
+            _torrentIds.value = _torrentIds.value + torrent.id
+            val from = pending.from?.let { " from $it" }.orEmpty()
+            val text = if (response.already) "Already in downloads: ${torrent.name}" else "Downloading ${torrent.name}$from"
+            say(text, "Show") { post(AppEvent.Navigate(Destination.Downloads)) }
+            onTorrentAdded()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            report(e, "Could not add the torrent")
+        }
+    }
+
+    /**
+     * Adds a torrent with the default options, through the same flow as every other add
+     * (notice, `ask_on_add`, permissions).
+     */
+    fun addTorrent(source: AddSource) = requestAdd(source)
+
+    /** "Turn on the built-in client" in the No torrent client dialog: saves the setting, then retries [retry]. */
+    fun turnOnBuiltInClient(retry: AddSource? = null, title: String? = null) {
+        viewModelScope.launch {
+            val current = _settings.value ?: return@launch
+            saveSettings(current.copy(torrents = current.torrents.copy(enabled = true))) ?: return@launch
+            if (retry != null) requestAdd(retry, title)
+        }
+    }
+
+    /** Records the torrents the client has, for the badges on results. */
+    fun setTorrentIds(ids: Set<String>) {
+        _torrentIds.value = ids
+    }
+
+    /** Reads the client's torrents once (the Search screen calls this, so the badges are current). */
+    fun refreshTorrentIds() {
+        if (!builtInClient) return
         viewModelScope.launch {
             try {
-                val response = torrentApi().addTorrent(AddRequest(source))
-                val name = response.torrent.name
-                say(if (response.already) "Already in downloads: $name" else "Downloading $name")
-                onTorrentAdded()
+                _torrentIds.value = torrentApi().torrents().map { it.id }.toSet()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                report(e, "Could not add the torrent")
+            } catch (_: Exception) {
+                // The badges are a hint; a client that isn't ready yet just shows none.
             }
         }
     }
+
+    /** Runs [block] with the engine that has the torrent client started. Returns `null` on failure. */
+    suspend fun <T> withTorrents(prefix: String? = null, block: suspend (HashlarkApi) -> T): T? = try {
+        block(torrentApi())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        report(e, prefix)
+        null
+    }
+
+    /** Like [withTorrents], but the failure is thrown, for callers that show it themselves. */
+    suspend fun torrents(): HashlarkApi = torrentApi()
 
     // ----- providers --------------------------------------------------------------------
 

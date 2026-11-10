@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
@@ -91,7 +92,8 @@ import kotlinx.coroutines.launch
 private enum class Section(val title: String, val summary: String, val icon: ImageVector) {
     Search("Search", "Timeouts, concurrency, history", Icons.Filled.Search),
     Network("Network and privacy", "Encrypted DNS, proxy, Tor", Icons.Filled.Lock),
-    Magnets("Magnets and downloads", "Torrent client, trackers, .torrent files", Icons.Filled.Tag),
+    Torrents("Torrent client", "Built-in downloads, speed, schedule, power", Icons.Filled.Download),
+    Magnets("Magnets and downloads", "Torrent app, trackers, .torrent files", Icons.Filled.Tag),
     Devices("Devices on this network", "Send results to your computer", Icons.Filled.Devices),
     Appearance("Appearance and updates", "Theme, colours, update check", Icons.Filled.Palette),
     About("About", "Version, licence, privacy", Icons.Filled.Info),
@@ -167,6 +169,7 @@ private fun SectionScreen(section: Section, settings: Settings, vm: SettingsView
             when (section) {
                 Section.Search -> SearchSection(settings, vm)
                 Section.Network -> NetworkSection(settings, vm, app)
+                Section.Torrents -> TorrentSection(settings, vm)
                 Section.Magnets -> MagnetsSection(settings, vm, app)
                 Section.Devices -> DevicesSection()
                 Section.Appearance -> AppearanceSection(settings, vm)
@@ -310,7 +313,12 @@ private fun MagnetsSection(settings: Settings, vm: SettingsViewModel, app: AppVi
     val handlers = remember { MagnetLauncher.handlers(context) }
     var menu by remember { mutableStateOf(false) }
 
-    Text("Torrent client", style = MaterialTheme.typography.labelLarge)
+    Text("Torrent app", style = MaterialTheme.typography.labelLarge)
+    Text(
+        "Used when the built-in client is off (Settings, Torrent client).",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     if (handlers.isEmpty()) {
         Text(
             "No app that opens magnet links is installed. Install a torrent client; until then, magnets can be copied or shared.",
@@ -511,7 +519,7 @@ private fun AboutSection() {
 
 /** A whole-number field that only reports values inside [range]. */
 @Composable
-private fun NumberField(label: String, value: Long, range: IntRange, onValid: (Long) -> Unit) {
+internal fun NumberField(label: String, value: Long, range: IntRange, onValid: (Long) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
     val parsed = text.toLongOrNull()
     val valid = parsed != null && parsed in range.first.toLong()..range.last.toLong()

@@ -65,6 +65,8 @@ class SearchHarness(
     results: List<MergedResult> = sampleResults(),
     events: ((List<MergedResult>) -> List<SearchEvent>)? = null,
     providers: List<io.github.ashxtrem.hashlark.core.ProviderView>? = null,
+    /** Changes the engine before the app reads it (settings, torrents). */
+    configure: (FakeApi) -> Unit = {},
 ) {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     val api = FakeApi(
@@ -78,7 +80,7 @@ class SearchHarness(
                 SearchEvent.Done(results.size, 320),
             )
         },
-    )
+    ).also(configure)
     private val runtime = HashlarkRuntime { api }
     val app = AppViewModel(runtime, AppPrefs(context)) { null }
     val search = SearchViewModel(runtime)
