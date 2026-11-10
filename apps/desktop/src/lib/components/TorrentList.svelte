@@ -101,6 +101,39 @@
     document.getElementById(`menu-${id}`)?.hidePopover();
   }
 
+  let list: HTMLElement | undefined = $state();
+
+  /** Opens the focused row's menu from the keyboard (Menu key or Shift+F10). */
+  function onListKey(e: KeyboardEvent) {
+    if (e.target === e.currentTarget && focused && (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) {
+      e.preventDefault();
+      const menu = document.getElementById(`menu-${focused}`);
+      menu?.showPopover();
+      menu?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+      return;
+    }
+    onkeydown(e);
+  }
+
+  /** Arrow keys move between menu items; Escape and Tab return to the list. */
+  function onMenuKey(e: KeyboardEvent, id: string) {
+    const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      items[(at + step + items.length) % items.length]?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      items[e.key === 'Home' ? 0 : items.length - 1]?.focus();
+    } else if (e.key === 'Escape' || e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu(id);
+      list?.focus();
+    }
+  }
+
   function stop(e: Event) {
     e.stopPropagation();
   }
@@ -117,8 +150,12 @@
   <div
     id="menu-{t.id}"
     popover
+    role="menu"
+    aria-label="Actions for {t.name}"
+    tabindex="-1"
     class="fixed m-0 w-48 rounded-xl border border-line bg-surface p-1 text-sm text-fg shadow-card"
     ontoggle={(e) => placeMenu(e, document.getElementById(`menu-btn-${t.id}`))}
+    onkeydown={(e) => onMenuKey(e, t.id)}
   >
     {#each [
       { label: 'Force start', icon: Zap, run: () => onaction(ids, 'force_start') },
@@ -129,7 +166,9 @@
       { label: 'Details', icon: Info, run: () => onopen(t.id) },
     ] as item (item.label)}
       <button
-        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+        role="menuitem"
+        tabindex="-1"
+        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
         onclick={() => {
           closeMenu(t.id);
           item.run();
@@ -140,7 +179,9 @@
       </button>
     {/each}
     <button
-      class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-err hover:bg-err-soft"
+      role="menuitem"
+      tabindex="-1"
+      class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-err hover:bg-err-soft focus:bg-err-soft focus:outline-none"
       onclick={() => {
         closeMenu(t.id);
         ondelete(ids);
@@ -178,11 +219,11 @@
     aria-activedescendant={focused ? `torrent-${focused}` : undefined}
     tabindex="0"
     class="select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
-    {onkeydown}
+    bind:this={list}
+    onkeydown={onListKey}
   >
     {#each rows as t (t.id)}
       {@const isSel = selected.has(t.id)}
-      {@const ids = isSel ? [...selected] : [t.id]}
       <!-- Mouse shortcuts; the keyboard path is on the list (arrows, Space, Enter…). -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <li
@@ -272,7 +313,7 @@
               aria-label="{pauseLabel(t)} {t.name}"
               onclick={(e) => {
                 e.stopPropagation();
-                onaction(ids, t.run_mode === 'paused' ? 'resume' : 'pause');
+                onaction([t.id], t.run_mode === 'paused' ? 'resume' : 'pause');
               }}
             >
               {#if t.run_mode === 'paused'}<Play size={16} />{:else}<Pause size={16} />{/if}
@@ -284,7 +325,7 @@
               aria-label="{stopLabel(t)} {t.name}"
               onclick={(e) => {
                 e.stopPropagation();
-                onaction(ids, t.run_mode === 'stopped' ? 'start' : 'stop');
+                onaction([t.id], t.run_mode === 'stopped' ? 'start' : 'stop');
               }}
             >
               {#if t.run_mode === 'stopped'}<Play size={16} class="text-ok" />{:else}<Square size={15} />{/if}

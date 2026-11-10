@@ -174,8 +174,46 @@
     }
   }
 
+  let panel: HTMLElement | undefined = $state();
+  let open = $derived(id !== null);
+
+  // Focus goes back where it was when the panel closes.
+  $effect(() => {
+    if (!open) return;
+    const back = document.activeElement as HTMLElement | null;
+    return () => {
+      if (back?.isConnected) back.focus();
+    };
+  });
+
+  /** Keeps Tab inside the panel (it is modal), from wherever focus is. */
+  function trapFocus(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || !panel) return;
+    const items = [
+      ...panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => el.getClientRects().length > 0);
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!first || !last) {
+      e.preventDefault();
+      return;
+    }
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !panel.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !panel.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && id && !document.querySelector('dialog[open]')) onclose();
+    if (!id || document.querySelector('dialog[open]')) return;
+    if (e.key === 'Escape') onclose();
+    else trapFocus(e);
   }
 </script>
 
@@ -189,6 +227,7 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="torrent-details-title"
+    bind:this={panel}
   >
     <header class="border-b border-line px-5 pt-4">
       <div class="flex items-start gap-3">

@@ -14,16 +14,20 @@
   let { targets, onclose, onconfirm }: Props = $props();
   let deleteFiles = $state(false);
 
-  // Unticked every time the dialog opens.
-  $effect(() => {
-    if (targets.length > 0) deleteFiles = false;
+  let open = $derived(targets.length > 0);
+  let wasOpen = false;
+
+  // Unticked each time the dialog opens, not when `targets` is just refreshed.
+  $effect.pre(() => {
+    if (open && !wasOpen) deleteFiles = false;
+    wasOpen = open;
   });
 
   const SHOWN = 8;
 </script>
 
 <Modal
-  open={targets.length > 0}
+  {open}
   title={targets.length === 1 ? 'Delete this torrent?' : `Delete ${targets.length} torrents?`}
   {onclose}
 >

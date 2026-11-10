@@ -22,6 +22,8 @@ import {
   stepSelection,
   stopToggle,
   toBase64,
+  torrentFileError,
+  MAX_TORRENT_FILE,
   visibleTorrents,
   backoff,
   rangeIds,
@@ -287,5 +289,13 @@ describe('files', () => {
 
   it('base64-encodes bytes', () => {
     expect(toBase64(new Uint8Array([0, 255, 104, 105]))).toBe('AP9oaQ==');
+  });
+
+  it('refuses non-.torrent and over-10 MiB files before reading them', () => {
+    expect(torrentFileError({ name: 'a.TORRENT', size: 1000 })).toBeNull();
+    expect(torrentFileError({ name: 'a.torrent', size: MAX_TORRENT_FILE })).toBeNull();
+    expect(torrentFileError({ name: 'a.torrent', size: MAX_TORRENT_FILE + 1 })).toMatch(/too big/);
+    expect(torrentFileError({ name: 'a.txt', size: 10 })).toMatch(/not a \.torrent/);
+    expect(MAX_TORRENT_FILE).toBe(10 * 1024 * 1024);
   });
 });

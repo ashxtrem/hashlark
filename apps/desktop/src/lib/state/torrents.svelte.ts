@@ -32,6 +32,7 @@ import {
   reduce,
   removeRequest,
   toBase64,
+  torrentFileError,
   type FileEntry,
   type QueueStep,
 } from '$lib/torrents';
@@ -77,6 +78,13 @@ class TorrentsState {
   countdown = $state<{ action: WhenDoneAction; endsAt: number } | null>(null);
 
   private started = false;
+  /**
+   * Bumped by {@link start} and {@link stop}; a stream loop from an older
+   * run ends at its next check (also during its backoff sleep).
+   */
+  private run = 0;
+  /** Desktop listeners are added once for the app's life. */
+  private desktopListening = false;
   private abort: AbortController | null = null;
   private noticeWaiters: ((ok: boolean) => void)[] = [];
 
@@ -84,27 +92,36 @@ class TorrentsState {
     return app.settings?.torrents.enabled ?? false;
   }
 
-  /** Subscribes once to live updates and desktop events. */
+  /** Subscribes to live updates (again after {@link stop} or a 401) and, once, to desktop events. */
   start(): void {
     if (this.started) return;
     this.started = true;
-    void this.stream();
-    void this.listenDesktop();
+    void this.stream(++this.run);
+    if (!this.desktopListening) {
+      this.desktopListening = true;
+      void this.listenDesktop();
+    }
   }
 
+  /** Closes the live-update stream; {@link start} opens it again. */
   stop(): void {
+    this.run += 1;
+    this.started = false;
+    this.connected = false;
     this.abort?.abort();
   }
 
-  private async stream(): Promise<void> {
+  private async stream(run: number): Promise<void> {
     let attempt = 0;
-    for (;;) {
+    const current = () => run === this.run;
+    while (current()) {
       const api = app.api;
-      if (!api) return;
+      if (!api) break;
       const abort = new AbortController();
       this.abort = abort;
       try {
         for await (const event of api.torrentEvents(abort.signal)) {
+          if (!current()) break;
           attempt = 0;
           this.connected = true;
           const { data, notice } = reduce({ list: this.list, session: this.session }, event);
@@ -116,15 +133,17 @@ class TorrentsState {
           }
         }
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) {
-          this.connected = false;
-          return;
-        }
+        if (e instanceof ApiError && e.status === 401) break;
       }
+      if (!current()) return;
       this.connected = false;
-      if (abort.signal.aborted) return;
       await sleep(backoff(attempt));
       attempt += 1;
+    }
+    // A 401 or a lost API ends the loop; start() may open it again.
+    if (current()) {
+      this.connected = false;
+      this.started = false;
     }
   }
 
@@ -210,10 +229,15 @@ class TorrentsState {
     if (!(await this.acceptNotice())) return null;
     let final: AddRequest | null = req;
     if (opts.dialog || app.settings?.torrents.ask_on_add) {
+      // `addPrompt` is a deep proxy; its `resolve` tells whose dialog shows.
+      let mine: AddPrompt['resolve'] | null = null;
       final = await new Promise<AddRequest | null>((resolve) => {
+        // A newer add replaces an open dialog; the older one is cancelled.
+        this.addPrompt?.resolve(null);
+        mine = resolve;
         this.addPrompt = { req, title: opts.title ?? null, files: opts.files ?? null, resolve };
       });
-      this.addPrompt = null;
+      if (this.addPrompt?.resolve === mine) this.addPrompt = null;
       if (!final) return null;
     }
     try {
@@ -238,8 +262,10 @@ class TorrentsState {
   /** Adds `.torrent` files (picked or dropped). */
   async addFiles(files: Iterable<File>, dialog = false): Promise<void> {
     for (const file of files) {
-      if (!file.name.toLowerCase().endsWith('.torrent')) {
-        toasts.error(`${file.name} is not a .torrent file`);
+      // Checked before reading, so a huge file is never loaded.
+      const problem = torrentFileError(file);
+      if (problem) {
+        toasts.error(problem);
         continue;
       }
       const data = new Uint8Array(await file.arrayBuffer());
