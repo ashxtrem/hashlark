@@ -188,7 +188,10 @@ mod tests {
 
         let at_limit = dir.join("limit.torrent");
         std::fs::write(&at_limit, vec![0u8; MAX_TORRENT_BYTES as usize]).unwrap();
-        assert_eq!(read_torrent(&at_limit).unwrap().len() as u64, MAX_TORRENT_BYTES);
+        assert_eq!(
+            read_torrent(&at_limit).unwrap().len() as u64,
+            MAX_TORRENT_BYTES
+        );
         let over = dir.join("over.torrent");
         std::fs::write(&over, vec![0u8; MAX_TORRENT_BYTES as usize + 1]).unwrap();
         assert!(read_torrent(&over).unwrap_err().contains("larger"));
