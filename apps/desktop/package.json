@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "check:tauri-versions": "node scripts/check-tauri-versions.mjs",
     "api:types": "cargo run -q -p hashlark-server -- --openapi > src/lib/api/openapi.json && openapi-typescript src/lib/api/openapi.json -o src/lib/api/schema.d.ts",
     "tauri": "tauri"
   },
