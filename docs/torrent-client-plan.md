@@ -731,3 +731,33 @@ Run before the PR:
 
 ## 13. Progress log
 - 2026-11-10: plan written and approved.
+- 2026-11-10: built with /runner (T1–T12 on `plan/torrent-client`).
+  - T1 librqbit 9.1 answers:
+    1. A per-torrent rate limit can only be set at add time. Changing it re-adds the torrent, copying the fastresume
+       file across so there is no re-check. Session-wide limits can be changed at runtime.
+    2. `peer_limit` can only be set at add time. A new value applies on re-add or on the next start.
+    3. Per-peer stats are available (`per_peer_stats_snapshot`).
+    4. There is no tracker status, only the URL list. The UI lists URLs without a status.
+    5. `uploaded_bytes` resets on every pause and restart, so Hashlark keeps the cumulative totals in its own table.
+    6. A magnet can't be paused while it fetches metadata. Hashlark holds those adds as its own cancellable "pending
+       metadata" entries.
+    7. `create_and_serve_torrent` returns `(CreateTorrentResult { meta, output_folder }, handle)`.
+  - `cargo deny` ignores RUSTSEC-2026-0293: ringbuf, reached through librqbit-utp, only stores `u8`.
+  - The loopback transfer of 3 MiB takes 27–53 ms. The 13 loopback tests take about 11 s.
+  - T9 Android library size (arm64, stripped): 24.1 MB before, 28.3 MB with librqbit. With `opt-level = "s"` in the
+    android profile (the user's choice) it is 23.6 MB, under the 25 MB budget.
+  - T10 emulator (API 36):
+    - A browser magnet was added and the FGS notification showed progress.
+    - Switching to a metered network showed "Waiting for Wi-Fi".
+    - Battery unplugged at 10% switched to alternative speed.
+    - The wake and Wi-Fi locks were released when idle.
+    - FUSE writes to `Download/` ran at 76 MB/s, so storage is not the bottleneck.
+  - T11: no emulator run, because the disk was too full for the AVD. The screenshots are Robolectric renders.
+  - Calls made during the run:
+    - Paused unfinished torrents block "When all done"; stopped ones don't.
+    - On Android, a long-press on a result row keeps the existing menu, which also has "Send to computer". The menu gains
+      "Download with options…", and a long-press on Download in the details opens the Add sheet.
+    - With no preferred app, the Android hand-off picks the first other client rather than showing a chooser.
+    - Deleting a created torrent never deletes its source files.
+  - Final checks all pass: fmt, clippy with `-D warnings`, workspace tests, desktop tests, defs lint, `cargo deny`, pnpm
+    check, test and build, and Android lint, unit tests and assemble.
