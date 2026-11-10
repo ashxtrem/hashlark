@@ -302,6 +302,25 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     if (settings?.ui?.firstRunDone == false) {
         WelcomeDialog { app.updateSettings { it.copy(ui = it.ui.copy(firstRunDone = true)) } }
     }
+    // An add that came while the built-in client is off: a magnet gets the No torrent client dialog below.
+    val clientOffPrompt by app.clientOffPrompt.collectAsStateWithLifecycle()
+    LaunchedEffect(clientOffPrompt) {
+        val prompt = clientOffPrompt ?: return@LaunchedEffect
+        val source = prompt.source
+        if (source is AddSource.Magnet) {
+            actions.noHandlerMagnet = source.uri
+            app.dismissClientOffPrompt()
+        }
+    }
+    clientOffPrompt?.takeIf { it.source !is AddSource.Magnet }?.let { prompt ->
+        TurnOnClientDialog(
+            onTurnOn = {
+                app.dismissClientOffPrompt()
+                app.turnOnBuiltInClient(retry = prompt.source, title = prompt.title)
+            },
+            onDismiss = app::dismissClientOffPrompt,
+        )
+    }
     actions.noHandlerMagnet?.let { magnet ->
         NoHandlerDialog(
             onTurnOn = if (clientOn) {
@@ -408,6 +427,17 @@ private fun WelcomeDialog(onAccept: () -> Unit) {
             }
         },
         confirmButton = { Button(onClick = onAccept) { Text("I understand, get started") } },
+    )
+}
+
+@Composable
+private fun TurnOnClientDialog(onTurnOn: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("The built-in client is off") },
+        text = { Text("Hashlark needs its built-in client to download this torrent. Turn it on and add the torrent?") },
+        confirmButton = { Button(onClick = onTurnOn) { Text("Turn on the built-in client") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
