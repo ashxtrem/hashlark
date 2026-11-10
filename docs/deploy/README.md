@@ -28,15 +28,16 @@ The `key` commands work while the server is stopped, with the same `--data-dir` 
 
 ## Docker
 
+Releases don't publish a Docker image. To run the server in Docker, build the image yourself from the repository root:
+
 ```bash
-docker run -d --name hashlark -p 8787:8787 -v hashlark-data:/data ghcr.io/ashxtrem/hashlark:latest
+docker build -t hashlark .
+docker run -d --name hashlark -p 8787:8787 -v hashlark-data:/data hashlark
 docker logs hashlark          # the first API key
 docker exec hashlark hashlark-server key create phone
 ```
 
-There's also a [`docker-compose.yml`](docker-compose.yml). The image is multi-arch (amd64, arm64) and runs as an unprivileged user. Data lives in `/data`: the database, `secrets.json` (provider passwords, readable only by the server's user), the torrent client's state, downloads (unless you move them, see [Torrent client](#torrent-client)) and an optional `hashlark.toml`.
-
-To build the image yourself: `docker build -t hashlark .` from the repository root.
+The image runs as an unprivileged user. Data lives in `/data`: the database, `secrets.json` (provider passwords, readable only by the server's user), the torrent client's state, downloads (unless you move them, see [Torrent client](#torrent-client)) and an optional `hashlark.toml`.
 
 ## Torrent client
 
@@ -52,19 +53,12 @@ roots = ["/downloads"]        # default: [download_dir]
 
   ```bash
   docker run -d --name hashlark -p 8787:8787 -p 6881:6881/tcp -p 6881:6881/udp \
-    -v hashlark-data:/data -v /srv/downloads:/downloads ghcr.io/ashxtrem/hashlark:latest
+    -v hashlark-data:/data -v /srv/downloads:/downloads hashlark
   ```
 
-  A host folder bind-mounted at `/downloads` must be writable by uid 10001, the server's user (for example `chown 10001 /srv/downloads`). The `docker-compose.yml` uses a named volume, which already is.
+  A host folder bind-mounted at `/downloads` must be writable by uid 10001, the server's user (for example `chown 10001 /srv/downloads`). A named volume already is.
 
-- **Publish port 6881 over TCP and UDP.** Peers connect to it for incoming connections. Without it, the client still works, but only makes outgoing connections. Add these lines under `ports` in your `docker-compose.yml`:
-
-  ```yaml
-      ports:
-        - "8787:8787"
-        - "6881:6881/tcp"
-        - "6881:6881/udp"
-  ```
+- **Publish port 6881 over TCP and UDP** (`-p 6881:6881/tcp -p 6881:6881/udp`, as above). Peers connect to it for incoming connections. Without it, the client still works, but only makes outgoing connections.
 
 - **`roots` limit the folders the client may use.** Downloads, the watched folder (`watch_dir`) and the files used to create torrents must all be inside one of the roots. Settings that point outside them are refused, and so are API requests for files outside them. Set `roots` to every folder you want the client to use, for example `["/downloads", "/media"]`.
 - **The API keys protect the torrent routes too.** They sit under `/api/v1/torrents`, behind the same keys as the rest of the API.

@@ -69,10 +69,6 @@ keyPassword=...
 
 APK Signature Scheme v2 and v3 are used (v1 is not needed from Android 7). v3 lets a later release rotate to a new key with a signing lineage, if that is ever necessary.
 
-### Container registry
-
-The Docker image is pushed to `ghcr.io/<owner>/<repo>` with the built-in `GITHUB_TOKEN`; nothing to set up.
-
 ## Cutting a release
 
 1. Update `CHANGELOG.md`.
@@ -91,7 +87,6 @@ The Docker image is pushed to `ghcr.io/<owner>/<repo>` with the built-in `GITHUB
    - desktop installers (Windows NSIS/MSI, macOS DMG for both architectures, Linux AppImage/deb) and `latest.json` for the updater;
    - `hashlark-server` archives for Linux (x86_64, arm64), Windows and macOS;
    - the signed Android APKs: `hashlark-<version>-arm64-v8a.apk`, `-armeabi-v7a.apk`, `-x86_64.apk` and `-universal.apk` (see [Android](#android) below);
-   - the multi-arch Docker image;
    - `SHA256SUMS`, the checksums of every file attached to the release.
 6. **Android check on a real device**: install the arm64 APK over the previous release (this proves the update path and the signature), then run the manual checklist in [android-plan.md §6](android-plan.md#6-testing) on the Galaxy Z Fold7.
 7. Review the **draft** release on GitHub, put the Android signing-certificate fingerprint in the release notes, then publish it. Publishing makes `latest.json` live, so installed apps see the update. The Android app's update notice also only sees **published** releases.
