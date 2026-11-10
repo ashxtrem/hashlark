@@ -324,7 +324,9 @@ impl LanService {
         let seen = Seen {
             name: clean_name(&hello.name),
             platform: hello.platform,
-            addr: SocketAddr::new(addr.ip(), hello.port),
+            // Exactly what was typed: behind port forwarding or NAT the
+            // device's own port isn't the one that reaches it.
+            addr,
             fullname: None,
         };
         if self.shared.see(hello.id.clone(), seen) {
@@ -415,7 +417,8 @@ impl LanService {
             clean_name(&reply.device.name),
             reply.device.platform,
             &keys.device_key,
-            Some(SocketAddr::new(addr.ip(), reply.device.port)),
+            // Where it was actually reached (see `add_address`).
+            Some(addr),
         );
         self.shared.save_peer(peer).await?;
         let device = self

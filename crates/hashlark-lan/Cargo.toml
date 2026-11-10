@@ -30,7 +30,7 @@ tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "s
 tracing = "0.1.44"
 
 [dev-dependencies]
-tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "test-util"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "test-util", "io-util"] }
 
 [lints]
 workspace = true

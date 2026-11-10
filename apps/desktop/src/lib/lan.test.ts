@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { formatCountdown, formatPin, receivedToast } from './lan';
+import { formatCountdown, formatPin, isPin, lanErrorMessage, pickerSections, pinHint, receivedToast } from './lan';
 import type { LanReceived } from './platform';
 
 const base: Omit<LanReceived, 'outcome'> = {
@@ -50,5 +50,45 @@ describe('receivedToast', () => {
       kind: 'error',
       message: "Couldn't open a link from Pixel 9: access denied",
     });
+  });
+});
+
+describe('picker helpers', () => {
+  const device = (name: string, paired: boolean, online: boolean, platform: 'desktop' | 'android' = 'android') => ({
+    id: name.toLowerCase(),
+    name,
+    platform,
+    paired,
+    online,
+    addr: null,
+  });
+
+  it('lists paired devices first, those on the network before the rest', () => {
+    const { paired, others } = pickerSections([
+      device('zeta', false, true),
+      device('Office', true, false),
+      device('pixel', true, true),
+      device('Attic', false, true),
+    ]);
+    expect(paired.map((d) => d.name)).toEqual(['pixel', 'Office']);
+    expect(others.map((d) => d.name)).toEqual(['Attic', 'zeta']);
+  });
+
+  it('accepts only six-digit PINs', () => {
+    expect(isPin('012345')).toBe(true);
+    expect(isPin('12345')).toBe(false);
+    expect(isPin('12a456')).toBe(false);
+  });
+
+  it('points at the right screen on each platform', () => {
+    expect(pinHint(device('Pixel', false, true))).toContain('Show pairing PIN');
+    expect(pinHint(device('Desk', false, true, 'desktop'))).toContain('Pair a phone');
+  });
+
+  it('turns coded failures into advice', () => {
+    expect(lanErrorMessage({ code: 'unreachable', message: 'x' }, 'Pixel')).toMatch(/^Couldn't reach Pixel\./);
+    expect(lanErrorMessage({ code: 'rejected', message: 'x' }, 'Pixel')).toContain('Pair again');
+    expect(lanErrorMessage({ code: 'protocol', message: 'raw' }, 'Pixel')).toBe('raw');
+    expect(lanErrorMessage(new Error('boom'), 'Pixel')).toBe('boom');
   });
 });

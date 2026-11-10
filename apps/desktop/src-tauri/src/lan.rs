@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Receiving links from paired phones on the local network and opening them
-//! in the torrent client (`hashlark-lan`, docs/lan-sharing-plan.md).
+//! Sharing results with devices on the local network (`hashlark-lan`,
+//! docs/lan-sharing-plan.md): sending a result to a paired phone, and opening
+//! links paired phones send in the torrent client.
 //!
 //! Off by default. The on/off choice lives in `<data dir>/lan.json`; the
 //! pairings live in the keychain with the other secrets.
@@ -108,7 +109,8 @@ pub struct Lan {
     secrets: Arc<dyn SecretStore>,
     settings_path: PathBuf,
     settings: StdMutex<LanSettings>,
-    service: Mutex<Option<LanService>>,
+    /// Shared so a slow send doesn't hold the lock that status reads need.
+    service: Mutex<Option<Arc<LanService>>>,
     error: StdMutex<Option<String>>,
 }
 
@@ -163,7 +165,7 @@ impl Lan {
         let started = LanService::start(config, Arc::clone(&self.secrets), events).await;
         *self.error.lock().expect("lock") = started.as_ref().err().map(ToString::to_string);
         match started {
-            Ok(started) => *service = Some(started),
+            Ok(started) => *service = Some(Arc::new(started)),
             Err(e) => tracing::error!(error = %e, "LAN sharing could not start"),
         }
     }
@@ -218,16 +220,34 @@ fn device_name() -> String {
         .unwrap_or_else(|| "Hashlark desktop".to_owned())
 }
 
-/// Runs `f` against the service, or fails if sharing is off.
+/// A failed LAN command, with the stable code the UI acts on (`wrong_pin`,
+/// `rejected`, `unreachable`, `not_running`, ...).
+#[derive(Debug, Serialize)]
+pub struct CommandError {
+    code: &'static str,
+    message: String,
+}
+
+impl From<hashlark_lan::Error> for CommandError {
+    fn from(err: hashlark_lan::Error) -> Self {
+        Self {
+            code: err.code(),
+            message: err.to_string(),
+        }
+    }
+}
+
+/// Runs `f` against the service, or fails if sharing is off. The lock is
+/// released before `f` runs.
 async fn with_service<T>(
     lan: &Lan,
     f: impl AsyncFnOnce(&LanService) -> hashlark_lan::Result<T>,
-) -> Result<T, String> {
-    let service = lan.service.lock().await;
-    let service = service
-        .as_ref()
-        .ok_or("turn on receiving from devices first")?;
-    f(service).await.map_err(|e| e.to_string())
+) -> Result<T, CommandError> {
+    let service = lan.service.lock().await.clone().ok_or(CommandError {
+        code: "not_running",
+        message: "turn on Settings → Devices on this network first".into(),
+    })?;
+    Ok(f(&service).await?)
 }
 
 #[tauri::command]
@@ -258,18 +278,18 @@ pub async fn lan_devices(lan: State<'_, Lan>) -> Result<Vec<Device>, String> {
         .lock()
         .await
         .as_ref()
-        .map(LanService::devices)
+        .map(|s| s.devices())
         .unwrap_or_default())
 }
 
 /// Shows a PIN a phone can pair with for the next two minutes.
 #[tauri::command]
-pub async fn lan_open_pairing(lan: State<'_, Lan>) -> Result<PairingCode, String> {
+pub async fn lan_open_pairing(lan: State<'_, Lan>) -> Result<PairingCode, CommandError> {
     with_service(&lan, async |s| Ok(s.open_pairing())).await
 }
 
 #[tauri::command]
-pub async fn lan_close_pairing(lan: State<'_, Lan>) -> Result<(), String> {
+pub async fn lan_close_pairing(lan: State<'_, Lan>) -> Result<(), CommandError> {
     with_service(&lan, async |s| {
         s.close_pairing();
         Ok(())
@@ -279,6 +299,36 @@ pub async fn lan_close_pairing(lan: State<'_, Lan>) -> Result<(), String> {
 
 /// Forgets a paired device; it can no longer send here until paired again.
 #[tauri::command]
-pub async fn lan_forget(lan: State<'_, Lan>, device_id: String) -> Result<(), String> {
+pub async fn lan_forget(lan: State<'_, Lan>, device_id: String) -> Result<(), CommandError> {
     with_service(&lan, async |s| s.forget(&device_id).await).await
+}
+
+/// Adds a device by address (`192.168.1.20:47821`) when discovery can't see it.
+#[tauri::command]
+pub async fn lan_add_address(lan: State<'_, Lan>, address: String) -> Result<Device, CommandError> {
+    with_service(&lan, async |s| s.add_address(&address).await).await
+}
+
+/// Pairs with a device using the PIN it shows.
+#[tauri::command]
+pub async fn lan_pair(
+    lan: State<'_, Lan>,
+    device_id: String,
+    pin: String,
+) -> Result<Device, CommandError> {
+    with_service(&lan, async |s| s.pair(&device_id, &pin).await).await
+}
+
+/// Sends a magnet link to a paired device, which opens it in its torrent app.
+#[tauri::command]
+pub async fn lan_send(
+    lan: State<'_, Lan>,
+    device_id: String,
+    url: String,
+    title: String,
+) -> Result<(), CommandError> {
+    with_service(&lan, async |s| {
+        s.send_magnet(&device_id, &url, &title).await
+    })
+    .await
 }

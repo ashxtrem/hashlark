@@ -62,6 +62,15 @@ internal fun pickerSections(devices: List<LanDevice>): Pair<List<LanDevice>, Lis
 
 internal fun isPin(text: String): Boolean = text.length == 6 && text.all(Char::isDigit)
 
+/** "123 456": easier to read out and type. */
+internal fun formatPin(pin: String): String = if (pin.length == 6) "${pin.take(3)} ${pin.drop(3)}" else pin
+
+/** "1:05" for 65 000 ms; never negative. */
+internal fun formatCountdown(ms: Long): String {
+    val total = ((ms.coerceAtLeast(0) + 999) / 1000)
+    return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
+}
+
 /** Where the other device shows its PIN. */
 internal fun pinHint(device: LanDevice): String = when (device.platform) {
     LanPlatform.Desktop -> "On ${device.name}, open Hashlark → Settings → Devices on this network → Pair a phone, then enter the PIN it shows."

@@ -500,3 +500,63 @@ fn local_addresses_are_ipv4_and_not_loopback() {
         assert!(ip.is_ipv4() && !ip.is_loopback(), "{ip}");
     }
 }
+
+/// Forwards connections from a new loopback port to `target`, like a router
+/// or `adb forward` does.
+async fn forward_to(target: u16) -> u16 {
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut inbound, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                if let Ok(mut outbound) =
+                    tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, target)).await
+                {
+                    let _ = tokio::io::copy_bidirectional(&mut inbound, &mut outbound).await;
+                }
+            });
+        }
+    });
+    port
+}
+
+#[tokio::test]
+async fn typed_addresses_are_used_as_given_behind_port_forwarding() {
+    let mut desktop = Node::start("Desk", Platform::Desktop).await;
+    let phone = Node::start("Pixel", Platform::Android).await;
+    let forwarded = forward_to(phone.lan.port()).await;
+    let typed = format!("127.0.0.1:{forwarded}");
+
+    // The desktop reaches the phone only through the forwarded port.
+    let found = desktop.lan.add_address(&typed).await.unwrap();
+    assert_eq!(found.addr.as_deref(), Some(typed.as_str()));
+
+    let code = phone.lan.open_pairing();
+    desktop.lan.pair(&phone.id(), &code.pin).await.unwrap();
+    desktop
+        .lan
+        .send_magnet(&phone.id(), MAGNET, "through the forward")
+        .await
+        .unwrap();
+    let mut phone = phone;
+    assert_eq!(phone.received().await.title, "through the forward");
+
+    // After a restart the remembered address is the forwarded one too.
+    let secrets = Arc::clone(&desktop.secrets);
+    desktop.lan.shutdown().await;
+    drop(desktop);
+    desktop = Node::start_with("Desk", Platform::Desktop, secrets).await;
+    assert_eq!(
+        desktop.lan.devices()[0].addr.as_deref(),
+        Some(typed.as_str())
+    );
+    desktop
+        .lan
+        .send_magnet(&phone.id(), MAGNET, "after restart")
+        .await
+        .unwrap();
+    assert_eq!(phone.received().await.title, "after restart");
+    let _ = desktop.events.try_recv();
+}

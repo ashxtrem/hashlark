@@ -69,6 +69,11 @@ class LanController(
     /** Links paired computers sent; the UI opens them. */
     val received: SharedFlow<LanReceived> = _received.asSharedFlow()
 
+    private val _paired = MutableSharedFlow<LanDevice>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Devices that just paired (from either side); the UI confirms it. */
+    val paired: SharedFlow<LanDevice> = _paired.asSharedFlow()
+
     private val mutex = Mutex()
     private var lan: LanApi? = null
     private var foreground = false
@@ -81,7 +86,10 @@ class LanController(
 
         override fun devicesChanged() = refresh()
 
-        override fun paired(device: LanDevice) = refresh()
+        override fun paired(device: LanDevice) {
+            refresh()
+            _paired.tryEmit(device)
+        }
 
         override fun pairingChanged(code: PairingCode?) = _state.update { it.copy(pairing = code) }
     }

@@ -28,17 +28,17 @@
   <h2 class="flex items-center gap-2 font-semibold"><Wifi size={17} /> Devices on this network</h2>
   <div class="flex items-center justify-between gap-4">
     <div>
-      <p class="text-sm font-medium">Receive links from your phone</p>
+      <p class="text-sm font-medium">Share with devices on this network</p>
       <p class="hint">
-        Hashlark on a phone on the same Wi-Fi can send a result here, and it opens in this
-        computer's torrent client. Only phones you pair can send. Windows may ask you to allow
-        Hashlark through the firewall.
+        Send results to Hashlark on a phone on the same Wi-Fi, and let paired phones send results
+        here to open in this computer's torrent client. Only devices you pair can send. Windows may
+        ask you to allow Hashlark through the firewall.
       </p>
     </div>
     <Switch
       checked={status?.enabled ?? false}
       disabled={lan.busy || !status}
-      label="Receive links from your phone"
+      label="Share with devices on this network"
       onchange={(on) => lan.setEnabled(on)}
     />
   </div>

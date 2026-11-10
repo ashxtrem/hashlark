@@ -130,7 +130,20 @@ export const lanApi = {
   openPairing: () => invoke<PairingCode>('lan_open_pairing'),
   closePairing: () => invoke<void>('lan_close_pairing'),
   forget: (deviceId: string) => invoke<void>('lan_forget', { deviceId }),
+  addAddress: (address: string) => invoke<LanDevice>('lan_add_address', { address }),
+  pair: (deviceId: string, pin: string) => invoke<LanDevice>('lan_pair', { deviceId, pin }),
+  send: (deviceId: string, url: string, title: string) => invoke<void>('lan_send', { deviceId, url, title }),
 };
+
+/** How a LAN command fails: a stable code and a sentence. */
+export interface LanError {
+  code: string;
+  message: string;
+}
+
+export function isLanError(e: unknown): e is LanError {
+  return typeof e === 'object' && e !== null && 'code' in e && 'message' in e;
+}
 
 export async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);

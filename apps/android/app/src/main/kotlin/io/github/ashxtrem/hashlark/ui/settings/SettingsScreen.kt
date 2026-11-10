@@ -21,10 +21,11 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -45,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,16 +56,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ashxtrem.hashlark.BuildConfig
 import io.github.ashxtrem.hashlark.core.DohResolver
+import io.github.ashxtrem.hashlark.core.LanDevice
+import io.github.ashxtrem.hashlark.core.LanPlatform
+import io.github.ashxtrem.hashlark.core.PairingCode
 import io.github.ashxtrem.hashlark.core.Settings
 import io.github.ashxtrem.hashlark.core.Theme
 import io.github.ashxtrem.hashlark.core.TorMode
-import io.github.ashxtrem.hashlark.core.LanDevice
-import io.github.ashxtrem.hashlark.core.LanPlatform
 import io.github.ashxtrem.hashlark.core.TorStatus
 import io.github.ashxtrem.hashlark.ffi.coreVersion
 import io.github.ashxtrem.hashlark.hashlark
@@ -74,6 +83,8 @@ import io.github.ashxtrem.hashlark.ui.common.LoadingBox
 import io.github.ashxtrem.hashlark.ui.common.ScreenTitle
 import io.github.ashxtrem.hashlark.ui.common.SectionTitle
 import io.github.ashxtrem.hashlark.ui.common.SwitchRow
+import io.github.ashxtrem.hashlark.ui.lan.formatCountdown
+import io.github.ashxtrem.hashlark.ui.lan.formatPin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -397,6 +408,7 @@ private fun DevicesSection() {
     state.error?.let { Text("Couldn't start: $it", color = MaterialTheme.colorScheme.error) }
     if (state.running && state.name != null) {
         Text("This phone appears as ${state.name}.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PairingCard(state.name!!, state.pairing, onOpen = { runCatching { lan.openPairing() } }, onCancel = lan::closePairing)
     }
     SectionTitle("Paired devices")
     val paired = state.devices.filter { it.paired }
@@ -431,6 +443,47 @@ private fun DevicesSection() {
             },
             dismissButton = { TextButton(onClick = { forgetting = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Lets a computer pair with this phone: shows a PIN to type there, for two minutes. */
+@Composable
+private fun PairingCard(name: String, pairing: PairingCode?, onOpen: () -> Unit, onCancel: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(pairing) {
+        while (pairing != null) {
+            now = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+    if (pairing == null || pairing.expiresAt <= now) {
+        OutlinedButton(onClick = onOpen) {
+            Icon(Icons.Filled.Link, contentDescription = null)
+            Text("Show pairing PIN", Modifier.padding(start = 8.dp))
+        }
+        Text(
+            "To send results from your computer to this phone, pair them once: show the PIN here, then on the computer choose Send to device and pick $name.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("On your computer, choose Send to device, pick $name and enter:", textAlign = TextAlign.Center)
+            Text(
+                formatPin(pairing.pin),
+                style = MaterialTheme.typography.displaySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.semantics { contentDescription = "PIN " + pairing.pin.toList().joinToString(" ") },
+            )
+            Text("Expires in ${formatCountdown(pairing.expiresAt - now)}", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        }
     }
 }
 

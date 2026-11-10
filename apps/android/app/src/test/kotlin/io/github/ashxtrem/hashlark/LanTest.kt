@@ -15,6 +15,8 @@ import io.github.ashxtrem.hashlark.core.LanReceived
 import io.github.ashxtrem.hashlark.core.PairingCode
 import io.github.ashxtrem.hashlark.system.AppPrefs
 import io.github.ashxtrem.hashlark.system.LanController
+import io.github.ashxtrem.hashlark.ui.lan.formatCountdown
+import io.github.ashxtrem.hashlark.ui.lan.formatPin
 import io.github.ashxtrem.hashlark.ui.lan.isPin
 import io.github.ashxtrem.hashlark.ui.lan.lanErrorMessage
 import io.github.ashxtrem.hashlark.ui.lan.pickerSections
@@ -67,6 +69,15 @@ class LanPickerTest {
         assertTrue(unreachable, unreachable.startsWith("Couldn't reach Desk."))
         assertTrue(lanErrorMessage(HashlarkFailure("rejected", "x"), "Desk").contains("Pair again"))
         assertEquals("raw", lanErrorMessage(HashlarkFailure("protocol", "raw"), "Desk"))
+    }
+
+    @Test
+    fun `PINs and countdowns read well`() {
+        assertEquals("123 456", formatPin("123456"))
+        assertEquals("2:00", formatCountdown(120_000))
+        assertEquals("1:05", formatCountdown(65_000))
+        assertEquals("0:01", formatCountdown(200))
+        assertEquals("0:00", formatCountdown(-5_000))
     }
 
     @Test
@@ -182,6 +193,11 @@ class LanControllerTest {
         val item = LanReceived(device("Desk", paired = true, online = true), "magnet:?xt=urn:btih:11", "Back")
         events!!.received(item)
         assertEquals(item, got.await())
+
+        val confirmed = async { withTimeout(5_000) { lan.paired.first() } }
+        delay(50)
+        events!!.paired(item.from)
+        assertEquals("Desk", confirmed.await().name)
 
         lan.forget("desk")
         assertFalse(lan.state.value.devices.single().paired)

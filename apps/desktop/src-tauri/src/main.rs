@@ -110,6 +110,9 @@ fn main() {
             lan::lan_open_pairing,
             lan::lan_close_pairing,
             lan::lan_forget,
+            lan::lan_add_address,
+            lan::lan_pair,
+            lan::lan_send,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Hashlark")

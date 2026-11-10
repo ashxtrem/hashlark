@@ -4,6 +4,7 @@
   import { onMount, type Snippet } from 'svelte';
   import { LoaderCircle, TriangleAlert } from '@lucide/svelte';
   import ChallengeDialog from '$components/ChallengeDialog.svelte';
+  import DevicePicker from '$components/DevicePicker.svelte';
   import LoginScreen from '$components/LoginScreen.svelte';
   import NoHandlerDialog from '$components/NoHandlerDialog.svelte';
   import ResultDetails from '$components/ResultDetails.svelte';
@@ -37,6 +38,7 @@
   </div>
   <ResultDetails names={providers.names} />
   <NoHandlerDialog />
+  <DevicePicker />
   <ChallengeDialog />
   <WelcomeDialog />
 {:else if app.connection === 'needs_login'}

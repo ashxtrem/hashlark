@@ -118,6 +118,10 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     LaunchedEffect(lan) {
         lan?.received?.collect(actions::openReceived)
     }
+    // A computer paired with this phone (Settings → Show pairing PIN).
+    LaunchedEffect(lan) {
+        lan?.paired?.collect { app.say("Paired with ${it.name}") }
+    }
 
     LaunchedEffect(Unit) {
         app.events.collect { event ->
