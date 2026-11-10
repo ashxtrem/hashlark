@@ -35,6 +35,8 @@ data class LanState(
     val running: Boolean = false,
     /** This phone's name as computers see it. */
     val name: String? = null,
+    /** `ip:port` to type on a computer that can't find this phone. */
+    val addresses: List<String> = emptyList(),
     val devices: List<LanDevice> = emptyList(),
     /** The PIN shown while a computer may pair with this phone. */
     val pairing: PairingCode? = null,
@@ -123,7 +125,13 @@ class LanController(
             val opened = opener(deviceName(), events)
             lan = opened
             _state.update {
-                it.copy(running = true, name = opened.identity.name, error = null, discoveryError = opened.discoveryError)
+                it.copy(
+                    running = true,
+                    name = opened.identity.name,
+                    addresses = opened.addresses(),
+                    error = null,
+                    discoveryError = opened.discoveryError,
+                )
             }
             refresh()
         } catch (e: CancellationException) {
@@ -146,7 +154,7 @@ class LanController(
             // Stopping is best effort.
         }
         releaseMulticast()
-        _state.update { it.copy(running = false, devices = emptyList(), pairing = null) }
+        _state.update { it.copy(running = false, devices = emptyList(), pairing = null, addresses = emptyList()) }
     }
 
     /** Re-reads the device list and the PIN. */

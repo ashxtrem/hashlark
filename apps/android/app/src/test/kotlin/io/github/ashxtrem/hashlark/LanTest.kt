@@ -96,6 +96,8 @@ private class FakeLan : LanApi {
     override val identity = LanIdentity("p1", "Test phone", LanPlatform.Android, 47821)
     override val discoveryError: String? = null
 
+    override fun addresses() = listOf("192.168.1.30:47821")
+
     override fun devices() = devices
     override suspend fun addAddress(address: String) = devices.first()
     override fun openPairing() = PairingCode("123456", 0)
@@ -144,6 +146,7 @@ class LanControllerTest {
         lan.onForeground()
         val state = lan.running()
         assertEquals("Test phone", state.name)
+        assertEquals(listOf("192.168.1.30:47821"), state.addresses)
         assertEquals(listOf("Desk"), state.devices.map { it.name })
 
         lan.onBackground()

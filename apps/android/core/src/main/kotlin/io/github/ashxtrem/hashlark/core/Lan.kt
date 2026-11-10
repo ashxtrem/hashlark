@@ -5,6 +5,7 @@ package io.github.ashxtrem.hashlark.core
 import android.content.Context
 import io.github.ashxtrem.hashlark.ffi.HashlarkLan
 import io.github.ashxtrem.hashlark.ffi.LanListener
+import io.github.ashxtrem.hashlark.ffi.lanLocalAddresses
 import io.github.ashxtrem.hashlark.ffi.openLan
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -66,6 +67,9 @@ interface LanApi {
     /** Why automatic discovery isn't running, if it failed to start. */
     val discoveryError: String?
 
+    /** `ip:port` to type on another device when it can't find this one. */
+    fun addresses(): List<String>
+
     fun devices(): List<LanDevice>
     suspend fun addAddress(address: String): LanDevice
     fun openPairing(): PairingCode
@@ -104,6 +108,8 @@ private class FfiLan(private val lan: HashlarkLan) : LanApi {
     override val identity: LanIdentity = json.decodeFromString(lan.identity())
 
     override val discoveryError: String? = lan.discoveryError()
+
+    override fun addresses(): List<String> = lanLocalAddresses().map { "$it:${identity.port}" }
 
     override fun devices(): List<LanDevice> = json.decodeFromString(lan.devices())
 

@@ -408,6 +408,13 @@ private fun DevicesSection() {
     state.error?.let { Text("Couldn't start: $it", color = MaterialTheme.colorScheme.error) }
     if (state.running && state.name != null) {
         Text("This phone appears as ${state.name}.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (state.addresses.isNotEmpty()) {
+            Text(
+                "If your computer doesn't list it, enter ${state.addresses.joinToString(" or ")} there.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         PairingCard(state.name!!, state.pairing, onOpen = { runCatching { lan.openPairing() } }, onCancel = lan::closePairing)
     }
     SectionTitle("Paired devices")
