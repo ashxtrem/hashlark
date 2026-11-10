@@ -29,7 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +54,54 @@ private val DAY_LABEL = 44.dp
 private val CELL_HEIGHT = 28.dp
 
 private fun hh(hour: Int) = hour.toString().padStart(2, '0')
+
+/**
+ * The schedule as painted so far. Each paint builds on the previous paint, not on the last
+ * recomposition, so two drag events in one frame both land. A [schedule] that comes back from
+ * the parent is one of ours (kept as is) or a change from elsewhere (taken over).
+ */
+internal class WorkingSchedule(schedule: String?) {
+    var value: String? = schedule
+        private set
+
+    /** What [change] sent and the parent hasn't passed back yet, oldest first. */
+    private val sent = ArrayDeque<String?>()
+
+    /** The parent passed [schedule]: an echo of a paint, or a change made elsewhere. */
+    fun sync(schedule: String?) {
+        val i = sent.indexOf(schedule)
+        if (i >= 0) {
+            repeat(i + 1) { sent.removeFirst() }
+        } else if (schedule != value) {
+            value = schedule
+            sent.clear()
+        }
+    }
+
+    fun change(next: String, onChange: (String) -> Unit) {
+        value = next
+        sent.addLast(next)
+        // A parent that never passes the schedule back must not make this grow without end.
+        if (sent.size > MAX_SENT) sent.removeFirst()
+        onChange(next)
+    }
+
+    /** Sets one hour to [brush], unless it already is. */
+    fun paint(day: Int, hour: Int, brush: ScheduleCell, onChange: (String) -> Unit) {
+        if (ScheduleGrid.dayStrip(value, day)[hour] != brush) change(ScheduleGrid.paint(value, day, hour, brush), onChange)
+    }
+
+    private companion object {
+        const val MAX_SENT = 64
+    }
+}
+
+@Composable
+private fun rememberWorkingSchedule(schedule: String?): WorkingSchedule {
+    val working = remember { WorkingSchedule(schedule) }
+    SideEffect { working.sync(schedule) }
+    return working
+}
 
 /**
  * The weekly schedule. On a compact window (or a narrow pane): a day picker and that day's
@@ -133,7 +182,7 @@ private fun Cell(cell: ScheduleCell, label: String, isNow: Boolean, width: Dp, o
 @Composable
 private fun DayStrip(schedule: String?, brush: ScheduleCell, current: Pair<Int, Int>, onChange: (String) -> Unit) {
     var day by rememberSaveable { mutableIntStateOf(current.first) }
-    val latest by rememberUpdatedState(schedule)
+    val working = rememberWorkingSchedule(schedule)
     val strip = ScheduleGrid.dayStrip(schedule, day)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,9 +193,7 @@ private fun DayStrip(schedule: String?, brush: ScheduleCell, current: Pair<Int, 
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val perRow = ScheduleGrid.HOURS / 2
             val cellWidth = (maxWidth - 32.dp) / perRow
-            fun paint(hour: Int) {
-                if (ScheduleGrid.dayStrip(latest, day)[hour] != brush) onChange(ScheduleGrid.paint(latest, day, hour, brush))
-            }
+            fun paint(hour: Int) = working.paint(day, hour, brush, onChange)
             Column(
                 Modifier.pointerInput(day, brush, cellWidth) {
                     val hit = { pos: Offset ->
@@ -186,7 +233,7 @@ private fun DayStrip(schedule: String?, brush: ScheduleCell, current: Pair<Int, 
                 }
             }
         }
-        OutlinedButton(onClick = { onChange(ScheduleGrid.copyDayToAll(schedule, day)) }) {
+        OutlinedButton(onClick = { working.change(ScheduleGrid.copyDayToAll(working.value, day), onChange) }) {
             Text("Copy ${ScheduleGrid.DAY_NAMES[day]} to every day")
         }
     }
@@ -196,11 +243,9 @@ private fun DayStrip(schedule: String?, brush: ScheduleCell, current: Pair<Int, 
 @Composable
 private fun WeekGrid(schedule: String?, brush: ScheduleCell, current: Pair<Int, Int>, width: Dp, onChange: (String) -> Unit) {
     val cells = ScheduleGrid.cells(schedule)
-    val latest by rememberUpdatedState(schedule)
+    val working = rememberWorkingSchedule(schedule)
     val cellWidth = (width - DAY_LABEL) / ScheduleGrid.HOURS
-    fun paint(day: Int, hour: Int) {
-        if (ScheduleGrid.cells(latest)[ScheduleGrid.index(day, hour)] != brush) onChange(ScheduleGrid.paint(latest, day, hour, brush))
-    }
+    fun paint(day: Int, hour: Int) = working.paint(day, hour, brush, onChange)
     Column {
         Row {
             Box(Modifier.width(DAY_LABEL))

@@ -268,6 +268,7 @@ class AppViewModel(
     }
 
     fun cancelAdd() {
+        awaitingPermissions = false
         _pendingAdd.value = null
     }
 
@@ -278,12 +279,26 @@ class AppViewModel(
     fun takePermissionPrompt(): Boolean = (!permissionsAsked).also { permissionsAsked = true }
 
     /**
+     * The permission dialog is on screen and its answer finishes the add. Kept here, not in the
+     * composition, so an activity recreated under the dialog waits for the answer instead of
+     * adding at once.
+     */
+    var awaitingPermissions = false
+        private set
+
+    /** The permission dialog was launched for the pending add. */
+    fun permissionPromptShown() {
+        awaitingPermissions = true
+    }
+
+    /**
      * The permission prompts are over: adds the torrent. [publicDir] is `Download/Hashlark` when
      * storage access was just granted (Android 8-9); the client resolved its default folder before
      * that, so the folder is saved as the download folder for the grant to count at once.
      */
     fun finishAdd(publicDir: String? = null) {
         permissionsAsked = true
+        awaitingPermissions = false
         val pending = _pendingAdd.value ?: return
         _pendingAdd.value = null
         viewModelScope.launch {

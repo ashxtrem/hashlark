@@ -89,9 +89,9 @@ class Screens(
     val providers: ProvidersViewModel,
     val repos: ReposViewModel,
     val settings: SettingsViewModel,
+    val downloads: DownloadsViewModel,
     /** LAN sharing; `null` in tests that render the UI without the app's process state. */
     val lan: LanController? = null,
-    val downloads: DownloadsViewModel = DownloadsViewModel(app),
 )
 
 /**

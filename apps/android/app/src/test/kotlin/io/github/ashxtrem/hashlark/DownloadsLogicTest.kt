@@ -13,6 +13,7 @@ import io.github.ashxtrem.hashlark.ui.downloads.DownloadsLogic
 import io.github.ashxtrem.hashlark.ui.settings.ScheduleCell
 import io.github.ashxtrem.hashlark.ui.settings.ScheduleGrid
 import io.github.ashxtrem.hashlark.ui.settings.TorrentLimits
+import io.github.ashxtrem.hashlark.ui.settings.WorkingSchedule
 import io.github.ashxtrem.hashlark.core.TorrentSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -130,6 +131,31 @@ class DownloadsLogicTest {
         // Tuesday 05:00 is cell 24 + 5.
         assertEquals('s', ScheduleGrid.paint(null, 1, 5, ScheduleCell.SeedOnly)[29])
         assertEquals(List(7) { monday }.flatten(), ScheduleGrid.cells(ScheduleGrid.copyDayToAll(withMonday, 0)))
+    }
+
+    @Test
+    fun `two paints before the parent recomposes both land`() {
+        val working = WorkingSchedule(null)
+        val sent = mutableListOf<String>()
+        // Two drag events in one frame: no sync from the parent in between.
+        working.paint(0, 3, ScheduleCell.Off) { sent += it }
+        working.paint(0, 4, ScheduleCell.Off) { sent += it }
+        assertEquals(2, sent.size)
+        assertEquals(ScheduleCell.Off, ScheduleGrid.dayStrip(sent.last(), 0)[3])
+        assertEquals(ScheduleCell.Off, ScheduleGrid.dayStrip(sent.last(), 0)[4])
+
+        // The parent passes the first paint back late: the second one is kept.
+        working.sync(sent.first())
+        assertEquals(sent.last(), working.value)
+        working.sync(sent.last())
+        assertEquals(sent.last(), working.value)
+
+        // A change made elsewhere (a reset) is taken over.
+        working.sync(ScheduleGrid.ALL_NORMAL)
+        assertEquals(ScheduleGrid.ALL_NORMAL, working.value)
+        working.paint(0, 5, ScheduleCell.Alt) { sent += it }
+        assertEquals(ScheduleCell.Normal, ScheduleGrid.dayStrip(working.value, 0)[3])
+        assertEquals(ScheduleCell.Alt, ScheduleGrid.dayStrip(working.value, 0)[5])
     }
 
     @Test

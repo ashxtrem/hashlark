@@ -107,7 +107,14 @@ class DownloadsViewModel(private val app: AppViewModel) : ViewModel() {
         api.updateTorrent(id, TorrentPatch(queuePos = QueueMove.Index(index)))
     }
 
-    suspend fun details(id: String): TorrentDetails? = app.withTorrents("Could not read the torrent") { it.torrent(id) }
+    /** Reads [id] quietly (the details sheet polls this once a second): `null` when it can't be read, no message. */
+    suspend fun details(id: String): TorrentDetails? = try {
+        app.torrents().torrent(id)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
 
     suspend fun peers(id: String): List<PeerInfo> = try {
         app.torrents().torrentPeers(id)

@@ -46,11 +46,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.ashxtrem.hashlark.core.Format
 import io.github.ashxtrem.hashlark.core.PeerInfo
 import io.github.ashxtrem.hashlark.core.SpeedLimits
@@ -82,12 +85,16 @@ fun TorrentDetailSheet(id: String, vm: DownloadsViewModel, onDelete: (TorrentSum
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
+    // Read once a second, only while the app is on screen; a failed read is shown in the sheet, not as a message.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(id, tab) {
-        while (true) {
-            val read = vm.details(id)
-            if (read != null) details = read else failed = details == null
-            if (DetailTab.entries[tab] == DetailTab.Peers) peers = vm.peers(id)
-            delay(1_000)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val read = vm.details(id)
+                if (read != null) details = read else failed = details == null
+                if (DetailTab.entries[tab] == DetailTab.Peers) peers = vm.peers(id)
+                delay(1_000)
+            }
         }
     }
 

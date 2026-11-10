@@ -87,6 +87,8 @@ fun AddTorrentFlow(app: AppViewModel) {
             onDismiss = app::cancelAdd,
         )
         AddStage.Permissions -> LaunchedEffect(p) {
+            // Recreated while the dialog is open: its answer (delivered to the new launcher) finishes the add.
+            if (app.awaitingPermissions) return@LaunchedEffect
             val needed = if (app.takePermissionPrompt()) {
                 listOfNotNull(
                     TorrentService.NOTIFICATION_PERMISSION.takeIf { TorrentService.needsNotificationPermission(context) },
@@ -95,7 +97,12 @@ fun AddTorrentFlow(app: AppViewModel) {
             } else {
                 emptyList()
             }
-            if (needed.isEmpty()) app.finishAdd() else permissions.launch(needed.toTypedArray())
+            if (needed.isEmpty()) {
+                app.finishAdd()
+            } else {
+                app.permissionPromptShown()
+                permissions.launch(needed.toTypedArray())
+            }
         }
     }
 }

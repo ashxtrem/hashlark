@@ -31,6 +31,7 @@ import io.github.ashxtrem.hashlark.ui.HashlarkRoot
 import io.github.ashxtrem.hashlark.ui.LibraryViewModel
 import io.github.ashxtrem.hashlark.ui.Screens
 import io.github.ashxtrem.hashlark.ui.WindowShape
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ProvidersViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ReposViewModel
 import io.github.ashxtrem.hashlark.ui.rememberResultActions
@@ -88,7 +89,7 @@ class SearchHarness(
 
     /** The whole app frame (navigation included) at the window the test's qualifiers describe. */
     fun showApp(fontScale: Float = 1f) {
-        val screens = Screens(app, search, library, ProvidersViewModel(app), ReposViewModel(app), SettingsViewModel(app))
+        val screens = Screens(app, search, library, ProvidersViewModel(app), ReposViewModel(app), SettingsViewModel(app), DownloadsViewModel(app))
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {

@@ -12,10 +12,16 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.onRoot
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.core.BulkAction
+import io.github.ashxtrem.hashlark.core.LanDevice
+import io.github.ashxtrem.hashlark.core.LanPlatform
+import io.github.ashxtrem.hashlark.core.LanReceived
 import io.github.ashxtrem.hashlark.core.QueueMove
 import io.github.ashxtrem.hashlark.core.QueueStep
 import io.github.ashxtrem.hashlark.core.RunMode
@@ -23,6 +29,9 @@ import io.github.ashxtrem.hashlark.core.TorrentState
 import io.github.ashxtrem.hashlark.ui.AddStage
 import io.github.ashxtrem.hashlark.ui.AppEvent
 import io.github.ashxtrem.hashlark.ui.Destination
+import io.github.ashxtrem.hashlark.ui.ResultActions
+import io.github.ashxtrem.hashlark.ui.downloads.AddTorrentFlow
+import io.github.ashxtrem.hashlark.ui.rememberResultActions
 import io.github.ashxtrem.hashlark.ui.settings.ScheduleCell
 import io.github.ashxtrem.hashlark.ui.settings.ScheduleGrid
 import io.github.ashxtrem.hashlark.ui.settings.SettingsViewModel
@@ -46,10 +55,12 @@ class DownloadsUiTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private fun harness(noticeAccepted: Boolean = true, enabled: Boolean = true) = SearchHarness(compose) { api ->
-        // Granted up front: Robolectric never answers a permission prompt.
-        org.robolectric.Shadows.shadowOf(androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>())
-            .grantPermissions("android.permission.POST_NOTIFICATIONS", "android.permission.WRITE_EXTERNAL_STORAGE")
+    private fun harness(noticeAccepted: Boolean = true, enabled: Boolean = true, grant: Boolean = true) = SearchHarness(compose) { api ->
+        // Granted up front: Robolectric never answers a permission prompt (tests that answer one pass grant = false).
+        if (grant) {
+            org.robolectric.Shadows.shadowOf(androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>())
+                .grantPermissions("android.permission.POST_NOTIFICATIONS", "android.permission.WRITE_EXTERNAL_STORAGE")
+        }
         api.settings = api.settings.copy(torrents = api.settings.torrents.copy(noticeAccepted = noticeAccepted, enabled = enabled))
         api.torrentList = listOf(
             torrent("a", TorrentState.Downloading, queuePos = 0, name = "Ubuntu desktop"),
@@ -258,5 +269,146 @@ class DownloadsUiTest {
         assertEquals(ScheduleCell.Off, ScheduleGrid.dayStrip(saved, 0)[3])
         assertEquals(ScheduleCell.Normal, ScheduleGrid.dayStrip(saved, 0)[4])
         h.picture("schedule-strip-360")
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_drag_over_three_hours_paints_all_three() {
+        val h = harness()
+        val settings = SettingsViewModel(h.app)
+        compose.setContent {
+            io.github.ashxtrem.hashlark.ui.theme.HashlarkTheme(dynamicColor = false) {
+                val draft by settings.draft.collectAsState()
+                draft?.torrents?.let { t ->
+                    androidx.compose.foundation.layout.Column {
+                        io.github.ashxtrem.hashlark.ui.settings.ScheduleGridEditor(t.schedule ?: ScheduleGrid.ALL_NORMAL) { s ->
+                            settings.edit { it.copy(torrents = it.torrents.copy(schedule = s)) }
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitUntil(5_000) { h.text("Off") }
+        compose.onNodeWithText("Off").performClick()
+        compose.onNodeWithText("Mon").performClick()
+        compose.waitForIdle()
+        val bounds = (3..5).map { hour ->
+            compose.onNodeWithContentDescription("Monday 0$hour:00, Normal", substring = true).fetchSemanticsNode().boundsInRoot
+        }
+        val centers = bounds.map { it.center }
+        compose.onRoot().performTouchInput {
+            // The drag starts where it passes the touch slop: a finger moves gradually, so that is still in the first cell.
+            down(androidx.compose.ui.geometry.Offset(bounds[0].left + 2f, centers[0].y))
+            moveTo(androidx.compose.ui.geometry.Offset(bounds[0].right - 2f, centers[0].y))
+            moveTo(centers[1])
+            moveTo(centers[2])
+            up()
+        }
+        compose.waitForIdle()
+        val strip = ScheduleGrid.dayStrip(settings.draft.value?.torrents?.schedule, 0)
+        assertEquals(listOf(ScheduleCell.Off, ScheduleCell.Off, ScheduleCell.Off), strip.subList(3, 6))
+        assertEquals(ScheduleCell.Normal, strip[2])
+        assertEquals(ScheduleCell.Normal, strip[6])
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_refused_permission_still_adds_the_torrent() {
+        val h = harness(grant = false)
+        h.showApp()
+        compose.runOnIdle { h.app.requestAdd(AddSource.Magnet("magnet:?xt=urn:btih:22")) }
+        compose.waitForIdle()
+        val request = org.robolectric.Shadows.shadowOf(compose.activity).lastRequestedPermission
+        assertNotNull("the notification permission is asked", request)
+        assertTrue(h.app.awaitingPermissions)
+        assertTrue("nothing is added before the answer", h.api.adds.isEmpty())
+
+        val denied = IntArray(request.requestedPermissions.size) { android.content.pm.PackageManager.PERMISSION_DENIED }
+        compose.runOnUiThread {
+            @Suppress("DEPRECATION")
+            compose.activity.onRequestPermissionsResult(request.requestCode, request.requestedPermissions, denied)
+        }
+        compose.waitUntil(5_000) { h.api.adds.isNotEmpty() }
+        assertEquals(AddSource.Magnet("magnet:?xt=urn:btih:22"), h.api.adds.single().source)
+        assertFalse(h.app.awaitingPermissions)
+        assertNull(h.app.pendingAdd.value)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun the_add_waits_for_the_permission_answer_when_the_flow_is_composed_again() {
+        val h = harness(grant = false)
+        var shown by mutableStateOf(true)
+        compose.setContent {
+            io.github.ashxtrem.hashlark.ui.theme.HashlarkTheme(dynamicColor = false) {
+                if (shown) AddTorrentFlow(h.app)
+            }
+        }
+        compose.waitUntil(5_000) { h.app.settings.value != null }
+        compose.runOnIdle { h.app.requestAdd(AddSource.Magnet("magnet:?xt=urn:btih:33")) }
+        compose.waitForIdle()
+        assertTrue(h.app.awaitingPermissions)
+        // As after a recreation under the dialog: the flow's effect runs again.
+        compose.runOnIdle { shown = false }
+        compose.waitForIdle()
+        compose.runOnIdle { shown = true }
+        compose.waitForIdle()
+        assertTrue("not added before the answer", h.api.adds.isEmpty())
+        assertEquals(AddStage.Permissions, h.app.pendingAdd.value?.stage)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun no_torrent_client_turns_on_the_built_in_one_and_retries() {
+        val h = harness(enabled = false)
+        h.showApp()
+        h.search()
+        h.select("r1")
+        compose.onNodeWithText("Open in client").performClick()
+        // Robolectric has no app for magnet links.
+        compose.waitUntil(5_000) { h.text("No torrent client found") }
+        compose.onNodeWithText("Turn on the built-in client").performClick()
+        compose.waitUntil(5_000) { h.api.adds.isNotEmpty() }
+        assertTrue(h.api.settings.torrents.enabled)
+        assertEquals(AddSource.Magnet("magnet:?xt=urn:btih:r1"), h.api.adds.single().source)
+        assertFalse(h.text("No torrent client found"))
+    }
+
+    private fun showActions(h: SearchHarness): () -> ResultActions {
+        var actions: ResultActions? = null
+        compose.setContent {
+            io.github.ashxtrem.hashlark.ui.theme.HashlarkTheme(dynamicColor = false) {
+                actions = rememberResultActions(h.app) {}
+                AddTorrentFlow(h.app)
+            }
+        }
+        compose.waitUntil(5_000) { h.app.settings.value != null }
+        return { actions!! }
+    }
+
+    private val desk = LanDevice("desk", "Desk", LanPlatform.Desktop, paired = true, online = true)
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_lan_link_goes_to_the_built_in_client_when_it_is_on() {
+        val h = harness()
+        val actions = showActions(h)
+        compose.runOnIdle { actions().openReceived(LanReceived(desk, "magnet:?xt=urn:btih:44", "Debian")) }
+        compose.waitUntil(5_000) { h.api.adds.isNotEmpty() }
+        assertEquals(AddSource.Magnet("magnet:?xt=urn:btih:44"), h.api.adds.single().source)
+        assertNull(actions().noHandlerMagnet)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_lan_link_goes_to_the_torrent_app_when_the_client_is_off() {
+        val h = harness(enabled = false)
+        val actions = showActions(h)
+        compose.runOnIdle { actions().openReceived(LanReceived(desk, "magnet:?xt=urn:btih:55", "Debian")) }
+        // Handed to openMagnet: with no torrent app installed, it ends in the No torrent client dialog's state.
+        compose.waitUntil(5_000) { actions().noHandlerMagnet != null }
+        assertEquals("magnet:?xt=urn:btih:55", actions().noHandlerMagnet)
+        assertTrue(h.api.adds.isEmpty())
+        assertNull(h.app.pendingAdd.value)
     }
 }

@@ -30,6 +30,7 @@ import io.github.ashxtrem.hashlark.ui.HashlarkRoot
 import io.github.ashxtrem.hashlark.ui.LibraryViewModel
 import io.github.ashxtrem.hashlark.ui.PendingDefinition
 import io.github.ashxtrem.hashlark.ui.Screens
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ProvidersViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ReposViewModel
 import io.github.ashxtrem.hashlark.ui.search.SearchViewModel
@@ -67,13 +68,14 @@ class MainActivity : ComponentActivity() {
     private val providersVm: ProvidersViewModel by viewModels { factory { ProvidersViewModel(appVm) } }
     private val reposVm: ReposViewModel by viewModels { factory { ReposViewModel(appVm) } }
     private val settingsVm: SettingsViewModel by viewModels { factory { SettingsViewModel(appVm) } }
+    private val downloadsVm: DownloadsViewModel by viewModels { factory { DownloadsViewModel(appVm) } }
 
     private var pendingDefinition by mutableStateOf<PendingDefinition?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, hashlarkApp.lan)
+        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, downloadsVm, hashlarkApp.lan)
         // Start the torrent client (and its service when torrents are unfinished) before any intent adds one.
         // Also on a re-created activity: the service may have been stopped meanwhile; this is idempotent.
         hashlarkApp.resumeTorrents()
