@@ -409,6 +409,9 @@ fn start_countdown(app: &AppHandle, action: WhenDoneAction, generation: u64) {
         let action = power.when_done.lock().expect("lock").fired(generation);
         if action == WhenDoneAction::Nothing {
             tracing::info!("when-all-done countdown cancelled");
+            // A cancel can land between the lock and the COUNTDOWN emit
+            // above; tell the UI again so a stale banner clears.
+            power.changed(&app);
             return;
         }
         power.changed(&app);
