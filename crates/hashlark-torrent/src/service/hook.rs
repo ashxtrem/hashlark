@@ -79,7 +79,8 @@ impl TorrentService {
 
     /// Sets `done` on `auto` torrents that reached their seed limit, and
     /// clears it when the limit no longer applies (a higher limit, a new
-    /// minutes value). Persists what changed. The caller holds `op_lock`.
+    /// minutes value) or the torrent is force-started. Persists what
+    /// changed. The caller holds `op_lock`.
     pub(crate) async fn mark_done(
         &self,
         run: &Running,
@@ -91,9 +92,13 @@ impl TorrentService {
             let mut st = run.state.lock().expect("lock");
             facts
                 .iter()
-                .filter(|f| f.finished && f.run_mode == RunMode::Auto)
                 .filter_map(|f| {
-                    let reached = seeding::limit_reached(f, settings, now_ms);
+                    let reached = match f.run_mode {
+                        RunMode::Auto if f.finished => seeding::limit_reached(f, settings, now_ms),
+                        // A forced torrent seeds past its limit: not done.
+                        RunMode::Forced => false,
+                        _ => return None,
+                    };
                     let row = st.rows.get_mut(&f.id)?;
                     (row.done != reached).then(|| {
                         row.done = reached;

@@ -1720,7 +1720,7 @@
         "tags": [
           "torrents"
         ],
-        "summary": "Removes a torrent, and its files with `delete_files=true`.",
+        "summary": "Removes a torrent, and its files with `delete_files=true` (never the\nsource files of a torrent created here).",
         "operationId": "remove_torrent",
         "parameters": [
           {
@@ -1735,7 +1735,7 @@
           {
             "name": "delete_files",
             "in": "query",
-            "description": "Also delete the downloaded files (default false).",
+            "description": "Also delete the downloaded files (default false). Ignored for\ntorrents created here: their files are the user's own sources.",
             "required": false,
             "schema": {
               "type": "boolean"
@@ -2261,7 +2261,8 @@
                 "type": "object",
                 "properties": {
                   "delete_files": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Also delete the downloaded files. Ignored for torrents created\nhere: their files are the user's own sources."
                   }
                 }
               }
@@ -4887,6 +4888,11 @@
           "paused",
           "stopped",
           "finished",
+          "done",
+          "scheduled_off",
+          "scheduled_seed_only",
+          "on_battery",
+          "waiting_for_network",
           "error"
         ]
       },

@@ -59,6 +59,7 @@ mod tests {
             seeding_since: Some(0),
             seed: SeedLimits::default(),
             error: false,
+            running: false,
         }
     }
 

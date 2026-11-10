@@ -36,6 +36,8 @@ pub(crate) struct TorrentFacts {
     /// The torrent's own seeding limits; `None` fields use the global ones.
     pub seed: SeedLimits,
     pub error: bool,
+    /// Transferring now (librqbit live or checking, not paused).
+    pub running: bool,
 }
 
 /// Context of one policy run.
