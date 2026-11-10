@@ -18,6 +18,26 @@ ignore = [
     { id = "RUSTSEC-2023-0071", reason = "no RSA private-key operations in a Tor client; no fixed release" },
     # Unmaintained build-time macro crate used by Arti; not a vulnerability.
     { id = "RUSTSEC-2024-0436", reason = "build-time macro via Arti; no replacement upstream yet" },
+    # Bundled SQLite < 3.54 can return uninitialised page-cache memory when it
+    # opens a crafted database + `-wal` pair. The fix is libsqlite3-sys 0.39,
+    # but sqlx-sqlite 0.9.0 (the latest sqlx) caps it at <0.38, and
+    # `links = "sqlite3"` allows one version in the graph, so Arti's rusqlite
+    # is held back too. Hashlark only opens its own database in its app-data
+    # directory, never a file a less trusted party wrote. Drop this once sqlx
+    # accepts libsqlite3-sys 0.39.
+    { id = "RUSTSEC-2026-0459", reason = "fix blocked by sqlx 0.9 capping libsqlite3-sys <0.38; we only open our own database" },
+    # Unmaintained (not vulnerable) build-time template config parser, used by
+    # askama inside uniffi_bindgen to generate the Android bindings. The
+    # latest askama and uniffi still depend on it.
+    { id = "RUSTSEC-2026-0374", reason = "build-time only, via uniffi_bindgen/askama; no replacement upstream yet" },
+    # zvariant, zvariant_derive and zbus_names are unmaintained (not
+    # vulnerable): they were folded into zbus 6. They reach us on Linux via
+    # zbus 4 (keyring's secret-service store) and zbus 5 (Tauri's opener and
+    # single-instance plugins). No stable keyring or Tauri plugin release is
+    # on zbus 6 yet.
+    { id = "RUSTSEC-2026-0370", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
+    { id = "RUSTSEC-2026-0371", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
+    { id = "RUSTSEC-2026-0372", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
 ]
 
 [licenses]
