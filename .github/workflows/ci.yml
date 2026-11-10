@@ -64,6 +64,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/desktop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: Tauri crate and npm package versions match (tauri build refuses otherwise)
+        run: pnpm check:tauri-versions
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
