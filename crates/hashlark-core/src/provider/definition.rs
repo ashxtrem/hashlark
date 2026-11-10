@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use reqwest::header::{COOKIE, HeaderName, HeaderValue};
+use reqwest::header::{CONTENT_TYPE, COOKIE, HeaderName, HeaderValue};
 use reqwest::{Method, RequestBuilder};
 use scraper::Html;
 use url::Url;
@@ -276,9 +276,29 @@ impl DefinitionProvider {
                 extract::render(&self.def, &format!("search.params.{name}"), &tctx)?,
             ));
         }
-        let request = match search.method {
-            HttpMethod::Get => ctx.http.request(Method::GET, url.clone()).query(&params),
-            HttpMethod::Post => ctx.http.request(Method::POST, url.clone()).form(&params),
+        let request = match (search.method, &search.body) {
+            (HttpMethod::Get, _) => ctx.http.request(Method::GET, url.clone()).query(&params),
+            (HttpMethod::Post, None) => ctx.http.request(Method::POST, url.clone()).form(&params),
+            (HttpMethod::Post, Some(_)) => {
+                let body = extract::render(&self.def, "search.body", &tctx)?;
+                let sets_type = self
+                    .def
+                    .spec
+                    .headers
+                    .keys()
+                    .chain(search.headers.keys())
+                    .any(|h| h.eq_ignore_ascii_case("content-type"));
+                let request = ctx
+                    .http
+                    .request(Method::POST, url.clone())
+                    .query(&params)
+                    .body(body);
+                if sets_type {
+                    request
+                } else {
+                    request.header(CONTENT_TYPE, "application/json")
+                }
+            }
         };
         let request = self.decorate(ctx, request, &tctx, &search.headers)?;
         let response = send(request).await?;

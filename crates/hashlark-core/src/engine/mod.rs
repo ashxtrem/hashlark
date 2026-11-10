@@ -945,7 +945,15 @@ search:
         .await;
         let views = engine.providers().await.unwrap();
         let ids: Vec<&str> = views.iter().map(|v| v.id.as_str()).collect();
-        assert_eq!(ids, ["academic-torrents", "foss-torrents", "linuxtracker"]);
+        assert_eq!(
+            ids,
+            [
+                "academic-torrents",
+                "foss-torrents",
+                "linuxtracker",
+                "public-domain-torrents"
+            ]
+        );
         assert!(
             views
                 .iter()

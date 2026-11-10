@@ -236,6 +236,12 @@ pub struct Search {
     /// Query parameters (GET) or form fields (POST). Values are templates.
     #[serde(default)]
     pub params: BTreeMap<String, String>,
+    /// POST only: the request body, as a template (e.g. JSON built with
+    /// `{{ query.text | tojson }}`). With a body, `params` go in the query
+    /// string, and `Content-Type` is `application/json` unless `headers`
+    /// set it.
+    #[serde(default)]
+    pub body: Option<String>,
     #[serde(default)]
     pub headers: BTreeMap<String, String>,
     pub response: ResponseKind,

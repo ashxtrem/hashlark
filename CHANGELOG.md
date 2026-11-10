@@ -11,6 +11,13 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
   - Desktop: **Settings → Devices on this network** (off by default) and **Send to device** in the result details.
   - Android: **Send to computer** on results, plus **Settings → Devices on this network** with the phone's address and **Show pairing PIN**. It runs only while the app is open.
   - New crate `hashlark-lan`, with `lan-send` and `lan-receive` examples for testing.
+- **Public Domain Torrents** (built in): about 1,000 classic films in the public domain, with the `.torrent` for each format on the film's page.
+- Definitions: `search.body` sends a templated request body (JSON by default) for APIs that don't take query parameters or forms.
+
+### Fixed
+
+- XML and RSS results are read even when a proxy appends a script after the closing tag (Cloudflare does this), instead of failing with "not XML".
+- `hashlark-cli defs test --live` resolves names over encrypted DNS like the app, so definitions for sites blocked at the DNS level can be tested; `--system-dns` turns this off.
 
 ## [0.1.2] - 2026-09-29
 

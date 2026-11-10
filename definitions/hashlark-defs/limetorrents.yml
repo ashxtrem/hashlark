@@ -1,0 +1,53 @@
+schema: 1
+id: limetorrents
+name: LimeTorrents
+description: General public tracker, searched through its RSS feed
+language: en
+version: 1
+links:
+  - https://www.limetorrents.fun/
+  - https://www.limetorrents.lol/
+search:
+  path: "searchrss/{{ query.text | urlencode }}/"
+  response: xml
+  rows: "//item"
+  fields:
+    title:
+      path: title
+    details:
+      path: link
+      optional: true
+    # The .torrent link is named after the infohash.
+    info_hash:
+      path: enclosure/@url
+      filters:
+        - { regex: "/torrent/([0-9A-Fa-f]{40})\\.torrent" }
+    size:
+      path: size
+      optional: true
+    seeders:
+      path: description
+      optional: true
+      filters:
+        - { regex: "Seeds:\\s*([0-9,]+)" }
+    leechers:
+      path: description
+      optional: true
+      filters:
+        - { regex: "Leechers:?\\s*([0-9,]+)" }
+    date:
+      path: pubDate
+      optional: true
+    # "Movies", "TV shows", "Music - Music", "Anime.", "Other - Other"
+    category:
+      path: category
+      optional: true
+      filters:
+        - { split: [" - ", "0"] }
+        - lower
+        - { re_replace: ["[^a-z ]", ""] }
+        - trim
+        - { replace: ["tv shows", "tv"] }
+        - { replace: ["applications", "software"] }
+test:
+  query: matrix

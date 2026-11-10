@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+schema: 1
+id: public-domain-torrents
+name: Public Domain Torrents
+description: Classic films in the public domain (B-movies, westerns, horror, serials)
+language: en
+version: 1
+links:
+  - https://www.publicdomaintorrents.info/
+caps:
+  categories:
+    movies: movies
+search:
+  # The site has no search, but one page lists all of its ~1,000 films, so
+  # it is fetched once a day and filtered locally. The torrents (one per
+  # format) are on each film's page.
+  path: nshowcat.html?category=ALL
+  response: html
+  static_feed:
+    ttl_hours: 24
+  rows: "a[href^='nshowmovie.html']"
+  max_rows: 5000
+  fields:
+    title: {}
+    details:
+      attr: href
+download:
+  selector: "a[href*='btdownload.php']"
+test:
+  query: night

@@ -8,7 +8,7 @@ Most sites can be added in 15–60 minutes, and fixing a site that changed usual
 
 ```bash
 hashlark-cli defs new my-site --type html        # or json / rss
-hashlark-cli defs test my-site.yml --live         # fetch and show parsed results
+hashlark-cli defs test my-site.yml --live         # fetch and show parsed results (encrypted DNS, like the app)
 hashlark-cli defs test my-site.yml --live --record   # also save the page as a test fixture
 hashlark-cli defs lint my-site.yml                # check for errors
 hashlark-cli import my-site.yml                   # add it to your Hashlark
@@ -102,6 +102,7 @@ search:
   path: /search/{{ query.text | urlencode }}/{{ query.page }}/
   params:                      # query string (GET) or form (POST); values are templates
     cat: "{{ query.site_categories | join(',') }}"
+  # body: '{"q": {{ query.text | tojson }}}'   # POST only: send this as the body (JSON by default)
   headers: {}
   response: html               # html | json | xml
   rows: "table#results > tbody > tr"
@@ -115,6 +116,16 @@ search:
 
 - `path` may also be a full URL.
 - A `static_feed` is fetched once per `ttl_hours` and filtered locally. Use it for sites that publish one RSS/XML file of everything (and ask you not to scrape).
+- `body` is for APIs that only take a JSON body. With a body, `params` go in the query string, and `Content-Type` is `application/json` unless `headers` set another. Build JSON strings with `tojson`, which adds the quotes and escaping:
+
+  ```yaml
+  search:
+    method: post
+    path: /v1/search
+    body: >-
+      {"query": {{ query.text | tojson }}, "size": 100
+       {%- if query.site_categories %}, "categories": [{{ query.site_categories | join(',') }}]{% endif %}}
+  ```
 
 ### Rows
 
@@ -223,9 +234,11 @@ The definitions that ship with Hashlark are in [`definitions/builtin/`](../defin
 - [`linuxtracker.yml`](../definitions/builtin/linuxtracker.yml): HTML; the infohash comes from the details link.
 - [`academic-torrents.yml`](../definitions/builtin/academic-torrents.yml): XML static feed.
 - [`foss-torrents.yml`](../definitions/builtin/foss-torrents.yml): RSS static feed with `.torrent` links.
+- [`public-domain-torrents.yml`](../definitions/builtin/public-domain-torrents.yml): an HTML page of every title used as a static feed; each row is a link, and the `.torrent` is on the details page.
 
 ## Testing and fixtures
 
 - Every definition in this repository must have a recorded page in `fixtures/<id>/`, and a test that parses it offline (see `crates/hashlark-core/src/definition/tests.rs`).
 - Record a page with `defs test --live --record`.
+- `defs test --live` resolves names over encrypted DNS, as the app does by default, so it reaches sites that are blocked at the DNS level. Add `--system-dns` to use the system resolver instead.
 - Replay it with `defs test <file> --fixture fixtures/<id>/search.html --query <text>`.

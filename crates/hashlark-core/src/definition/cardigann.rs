@@ -502,6 +502,7 @@ impl Converter {
                 method,
                 path,
                 params,
+                body: None,
                 headers: BTreeMap::new(),
                 response,
                 rows,

@@ -84,7 +84,7 @@ cargo run -p hashlark-server -- --bind 127.0.0.1:8787   # prints the first API k
 
 ## Legal
 
-Hashlark is a neutral search tool. It hosts no content, and it ships with legal sources only (the Internet Archive, Linux distributions, academic datasets and open-source software). You are responsible for complying with the law and copyright where you live.
+Hashlark is a neutral search tool. It hosts no content, and it ships with legal sources only (the Internet Archive, Linux distributions, academic datasets, open-source software and public-domain films). You are responsible for complying with the law and copyright where you live.
 
 ## Licence
 
