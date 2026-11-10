@@ -138,6 +138,14 @@ export async function pickFolder(): Promise<string | null> {
   return typeof picked === 'string' ? picked : null;
 }
 
+/** Lets the user pick a file (desktop only). */
+export async function pickFile(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const picked = await open({ directory: false, multiple: false });
+  return typeof picked === 'string' ? picked : null;
+}
+
 /** Opens a site in a separate window for its browser check (desktop only). */
 export async function openChallenge(url: string): Promise<void> {
   await invoke('open_challenge', { url });

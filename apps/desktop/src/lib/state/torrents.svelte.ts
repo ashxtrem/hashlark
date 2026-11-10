@@ -1,0 +1,332 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+//! The built-in torrent client: the live list, adding torrents and actions
+//! (plan `docs/torrent-client-plan.md` §7.1).
+
+import {
+  ApiError,
+  type AddRequest,
+  type AddResponse,
+  type SessionStats,
+  type TorrentSummary,
+} from '$lib/api/client';
+import {
+  isTauri,
+  onClosedToTray,
+  onTorrentOpen,
+  whenDoneApi,
+  type TorrentOpen,
+  type WhenDoneAction,
+  type WhenDoneStatus,
+} from '$lib/platform';
+import { app } from '$lib/state/app.svelte';
+import { errorMessage, toasts } from '$lib/state/toasts.svelte';
+import { ui } from '$lib/state/ui.svelte';
+import {
+  backoff,
+  downloadingCount,
+  isMagnet,
+  moveOrder,
+  patch,
+  readTorrent,
+  reduce,
+  removeRequest,
+  toBase64,
+  type FileEntry,
+  type QueueStep,
+} from '$lib/torrents';
+
+export type RowAction = 'pause' | 'resume' | 'stop' | 'start' | 'force_start';
+
+/** The Add dialog, waiting for the user's choice. */
+export interface AddPrompt {
+  req: AddRequest;
+  /** Torrent name, when known. */
+  title: string | null;
+  /** Files, when the metadata is known (a `.torrent`). */
+  files: FileEntry[] | null;
+  resolve: (req: AddRequest | null) => void;
+}
+
+export interface AddOptions {
+  /** Show the Add dialog even when `ask_on_add` is off (Shift held). */
+  dialog?: boolean;
+  title?: string | null;
+  files?: FileEntry[] | null;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+class TorrentsState {
+  list = $state.raw<TorrentSummary[]>([]);
+  session = $state.raw<SessionStats | null>(null);
+  /** The live-update stream is open. */
+  connected = $state(false);
+  /** Info hashes in the client (for "In downloads" badges). */
+  byHash = $derived(new Set(this.list.map((t) => t.id)));
+  downloading = $derived(downloadingCount(this.list));
+
+  /** The one-time notice is shown; answer with {@link answerNotice}. */
+  noticeOpen = $state(false);
+  addPrompt = $state<AddPrompt | null>(null);
+  createOpen = $state(false);
+
+  /** "When all done" (desktop only). */
+  whenDone = $state<WhenDoneStatus | null>(null);
+  /** The when-done countdown runs; ends at this time (epoch ms). */
+  countdown = $state<{ action: WhenDoneAction; endsAt: number } | null>(null);
+
+  private started = false;
+  private abort: AbortController | null = null;
+  private noticeWaiters: ((ok: boolean) => void)[] = [];
+
+  get enabled(): boolean {
+    return app.settings?.torrents.enabled ?? false;
+  }
+
+  /** Subscribes once to live updates and desktop events. */
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    void this.stream();
+    void this.listenDesktop();
+  }
+
+  stop(): void {
+    this.abort?.abort();
+  }
+
+  private async stream(): Promise<void> {
+    let attempt = 0;
+    for (;;) {
+      const api = app.api;
+      if (!api) return;
+      const abort = new AbortController();
+      this.abort = abort;
+      try {
+        for await (const event of api.torrentEvents(abort.signal)) {
+          attempt = 0;
+          this.connected = true;
+          const { data, notice } = reduce({ list: this.list, session: this.session }, event);
+          this.list = data.list;
+          this.session = data.session;
+          // The desktop shell already notifies about finished downloads.
+          if (notice && (notice.kind === 'error' || !isTauri())) {
+            toasts.show(notice.message, notice.kind, notice.kind === 'error' ? 7000 : 5000);
+          }
+        }
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          this.connected = false;
+          return;
+        }
+      }
+      this.connected = false;
+      if (abort.signal.aborted) return;
+      await sleep(backoff(attempt));
+      attempt += 1;
+    }
+  }
+
+  private async listenDesktop(): Promise<void> {
+    if (!isTauri()) return;
+    try {
+      this.whenDone = await whenDoneApi.status();
+      await Promise.all([
+        whenDoneApi.onChanged((s) => {
+          this.whenDone = s;
+          if (!s.counting) this.countdown = null;
+        }),
+        whenDoneApi.onCountdown((c) => {
+          this.countdown = { action: c.action, endsAt: Date.now() + c.seconds * 1000 };
+        }),
+        onClosedToTray(({ first }) => {
+          if (first) {
+            toasts.show('Hashlark keeps running in the tray. Quit it from the tray menu.', 'info', 8000);
+          }
+        }),
+        onTorrentOpen((open) => void this.opened(open)),
+      ]);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
+  /** A magnet or `.torrent` the OS opened with Hashlark. */
+  private async opened(open: TorrentOpen): Promise<void> {
+    if ('magnet' in open) {
+      if (open.client_on) await this.add({ source: { magnet: open.magnet } });
+      else ui.noHandlerMagnet = open.magnet;
+      return;
+    }
+    // The UI can't read files by path; drop or pick them instead.
+    toasts.error(`Can't open ${open.path} here yet. Drag the file onto the window or use Add.`);
+  }
+
+  /** Reloads the list now instead of waiting for the next snapshot. */
+  async refresh(): Promise<void> {
+    try {
+      this.list = await app.client.torrents();
+    } catch {
+      // The next snapshot brings it.
+    }
+  }
+
+  // ----- Adding --------------------------------------------------------------
+
+  /** Resolves once the user has accepted the one-time notice (or declined). */
+  private acceptNotice(): Promise<boolean> {
+    if (app.settings?.torrents.notice_accepted) return Promise.resolve(true);
+    this.noticeOpen = true;
+    return new Promise((resolve) => this.noticeWaiters.push(resolve));
+  }
+
+  async answerNotice(ok: boolean): Promise<void> {
+    if (ok && app.settings) {
+      try {
+        await app.saveSettings({
+          ...app.settings,
+          torrents: { ...app.settings.torrents, notice_accepted: true },
+        });
+      } catch (e) {
+        toasts.error(`Could not save your answer: ${errorMessage(e)}`);
+      }
+    }
+    this.noticeOpen = false;
+    const waiters = this.noticeWaiters;
+    this.noticeWaiters = [];
+    for (const resolve of waiters) resolve(ok);
+  }
+
+  /**
+   * The add flow: the one-time notice, then the Add dialog when
+   * `ask_on_add` is on or `dialog` is set (Shift held), then the API.
+   */
+  async add(req: AddRequest, opts: AddOptions = {}): Promise<AddResponse | null> {
+    if (!this.enabled) {
+      toasts.error('The built-in torrent client is off. Turn it on in Settings.');
+      return null;
+    }
+    if (!(await this.acceptNotice())) return null;
+    let final: AddRequest | null = req;
+    if (opts.dialog || app.settings?.torrents.ask_on_add) {
+      final = await new Promise<AddRequest | null>((resolve) => {
+        this.addPrompt = { req, title: opts.title ?? null, files: opts.files ?? null, resolve };
+      });
+      this.addPrompt = null;
+      if (!final) return null;
+    }
+    try {
+      const res = await app.client.addTorrent(final);
+      if (!res.already && !this.byHash.has(res.torrent.id)) this.list = [...this.list, res.torrent];
+      if (res.already) toasts.show(`Already in Downloads: ${res.torrent.name}`);
+      else toasts.success(`Added ${res.torrent.name}`);
+      return res;
+    } catch (e) {
+      toasts.error(`Could not add the torrent: ${errorMessage(e)}`);
+      return null;
+    }
+  }
+
+  /** Adds a magnet link typed or pasted. Returns false when it isn't one. */
+  async addText(text: string, dialog = false): Promise<boolean> {
+    if (!isMagnet(text)) return false;
+    await this.add({ source: { magnet: text.trim() } }, { dialog });
+    return true;
+  }
+
+  /** Adds `.torrent` files (picked or dropped). */
+  async addFiles(files: Iterable<File>, dialog = false): Promise<void> {
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.torrent')) {
+        toasts.error(`${file.name} is not a .torrent file`);
+        continue;
+      }
+      const data = new Uint8Array(await file.arrayBuffer());
+      const info = readTorrent(data);
+      await this.add(
+        { source: { torrent: toBase64(data) } },
+        { dialog, title: info?.name ?? file.name.replace(/\.torrent$/i, ''), files: info?.files ?? null },
+      );
+    }
+  }
+
+  // ----- Actions -------------------------------------------------------------
+
+  private report(failed: { id: string; message: string }[]): void {
+    if (failed.length === 0) return;
+    const name = (id: string) => this.list.find((t) => t.id === id)?.name ?? id;
+    toasts.error(failed.map((f) => `${name(f.id)}: ${f.message}`).join('\n'));
+  }
+
+  /** Pause, resume, stop, start or force start; every torrent when `ids` is null. */
+  async act(ids: string[] | null, action: RowAction): Promise<void> {
+    try {
+      const res = await app.client.bulkTorrents({ ids, action });
+      this.report(res.failed);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+    await this.refresh();
+  }
+
+  async remove(ids: string[], deleteFiles: boolean): Promise<void> {
+    try {
+      const res = await app.client.bulkTorrents(removeRequest(ids, deleteFiles));
+      this.report(res.failed);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+    await this.refresh();
+  }
+
+  /** Moves torrents in the queue; a single one moves past its shown neighbour. */
+  async move(ids: string[], step: QueueStep, index: number | null = null): Promise<void> {
+    try {
+      const [only] = ids;
+      if (ids.length === 1 && only && index !== null) {
+        await app.client.updateTorrent(only, patch({ queue_pos: index }));
+      } else {
+        for (const id of moveOrder(this.list, ids, step)) {
+          await app.client.updateTorrent(id, patch({ queue_pos: step }));
+        }
+      }
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+    await this.refresh();
+  }
+
+  /** Drag and drop in the Queued tab: `index` in the whole queue. */
+  async reorder(id: string, index: number): Promise<void> {
+    await this.move([id], 'up', index);
+  }
+
+  async setTurtle(on: boolean): Promise<void> {
+    try {
+      await app.client.bulkTorrents({ action: { turtle: on } });
+      if (this.session) this.session = { ...this.session, turtle: on };
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
+  async setWhenDone(action: WhenDoneAction): Promise<void> {
+    try {
+      this.whenDone = await whenDoneApi.set(action);
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+
+  async cancelWhenDone(): Promise<void> {
+    this.countdown = null;
+    try {
+      this.whenDone = await whenDoneApi.cancel();
+    } catch (e) {
+      toasts.error(errorMessage(e));
+    }
+  }
+}
+
+export const torrents = new TorrentsState();
