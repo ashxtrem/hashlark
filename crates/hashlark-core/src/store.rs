@@ -124,6 +124,13 @@ mod tests {
             store.schema_version().await.unwrap(),
             Some(Store::latest_schema_version())
         );
+        let tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'torrents'",
+        )
+        .fetch_one(store.pool())
+        .await
+        .unwrap();
+        assert_eq!(tables, 1, "the torrents table exists");
     }
 
     #[tokio::test]
