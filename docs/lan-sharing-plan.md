@@ -1,5 +1,24 @@
 # Plan: send a result to another device on the LAN
 
+> **Status: done (2026-11-10).** Built as planned. The design is recorded in
+> [ADR 0016](adr/0016-lan-device-handoff.md) and the user guide has a
+> [section](user-guide.md#send-results-to-another-device) on it. Where the build
+> differs from this plan:
+>
+> - **Labels.**
+>   - Desktop: the switch is *Share with devices on this network* (it covers
+>     sending too), and the button is *Send to device*, in the result details only.
+>   - Android: *Show pairing PIN* replaces "Allow a computer to pair". The sheet
+>     lists unpaired devices under *Pair with*.
+> - **Body limit.** It is 48 KiB rather than 8 KB, so magnets with many trackers fit.
+> - **Typed addresses** are used exactly as entered, so port forwarding and NAT
+>   work. Only devices announcing themselves over mDNS count as "on this network".
+> - **Both apps show their own `ip:port`** for typing on the other device.
+> - **Test stand-ins:** `cargo run -p hashlark-lan --example lan-send` and
+>   `--example lan-receive` play the other device during manual testing.
+> - **Still untried** on a real phone over Wi-Fi. The trials used an emulator and
+>   the desktop app on one PC.
+
 ## Context
 
 Today a result can only be opened on the device that found it (ADR 0008: hand
@@ -129,11 +148,11 @@ crypto.rs, server.rs, client.rs, store.rs, tests.rs}`; add to workspace `Cargo.t
 
 ## Order of work
 
-1. `hashlark-lan` crate with tests (pairing, crypto, server, client; loopback, discovery off).
-2. Desktop receiver + pairing UI in Settings.
-3. FFI + Android sender (picker, PIN dialog). **Phone → desktop works end to end here.**
-4. Desktop sender + Android receiver (while open). Desktop ↔ phone both ways.
-5. ADR + user guide.
+1. ✅ `hashlark-lan` crate with tests (pairing, crypto, server, client; loopback, discovery off).
+2. ✅ Desktop receiver + pairing UI in Settings.
+3. ✅ FFI + Android sender (picker, PIN dialog). **Phone → desktop works end to end here.**
+4. ✅ Desktop sender + Android receiver (while open). Desktop ↔ phone both ways.
+5. ✅ ADR + user guide.
 
 Out of scope for v1: `.torrent`-only results (send says "no magnet link",
 same message `copyMagnet` shows), background receiving on Android, sending to

@@ -13,6 +13,7 @@ A fast, private, cross-platform torrent **search** app. Hashlark asks many index
 - **Works where sites are blocked:** encrypted DNS (on by default), mirror fallback, proxies, built-in Tor, and a guided flow for browser checks.
 - **Keeps itself healthy:** failing providers are paused and retried automatically, and a nightly canary checks the built-in definitions.
 - **Desktop app** for Windows, macOS and Linux, an **Android app** that adapts to phones, tablets and foldables (built for the Galaxy Z Fold7), and a **headless server** with a web UI, API keys, Docker image and a Torznab endpoint for Sonarr/Radarr.
+- **Send a result to your computer:** pair your phone with the desktop app once, then send a result across your Wi-Fi and it opens in the computer's torrent client (and back the other way). Encrypted, with no account or cloud.
 - **Private by design:** no telemetry. Credentials are kept in the OS keychain. Hashlark ships with legal sources only.
 
 ## Screenshots
