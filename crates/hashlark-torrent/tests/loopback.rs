@@ -274,21 +274,23 @@ mod service {
     use std::net::{IpAddr, Ipv4Addr};
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU8, Ordering};
     use std::time::{Duration, Instant};
 
     use async_trait::async_trait;
     use hashlark_core::model::{SearchQuery, SearchResult};
     use hashlark_core::provider::{Capabilities, ProviderInfo, ProviderKind};
     use hashlark_core::secrets::MemorySecretStore;
-    use hashlark_core::settings::SpeedLimits;
+    use hashlark_core::settings::{OnBattery, SpeedLimits, TorrentSettings, WeekGrid};
     use hashlark_core::{
         AppPaths, Engine, EngineOptions, Error, ProviderCtx, ProviderError, SearchProvider, Store,
     };
     use hashlark_torrent::model::{
-        AddRequest, AddSource, BulkAction, BulkRequest, CreateRequest, Origin, RunMode,
-        TorrentAction, TorrentEvent, TorrentPatch, TorrentState, TorrentSummary,
+        AddRequest, AddSource, BulkAction, BulkRequest, CreateRequest, Origin, PowerState, RunMode,
+        ScheduleMode, SeedLimits, TorrentAction, TorrentEvent, TorrentPatch, TorrentState,
+        TorrentSummary,
     };
-    use hashlark_torrent::{ServiceOptions, TorrentService};
+    use hashlark_torrent::{Clock, Moment, ServiceOptions, TorrentService};
     use tempfile::TempDir;
 
     use super::{FILE_LEN, TRANSFER_LIMIT, test_bytes};
@@ -305,7 +307,15 @@ mod service {
         }
     }
 
+    /// A node with no seed limit, so the transfer tests keep seeding.
     async fn node(builtins: Vec<Arc<dyn SearchProvider>>) -> Node {
+        node_with(builtins, |t| t.seed_ratio = None).await
+    }
+
+    async fn node_with(
+        builtins: Vec<Arc<dyn SearchProvider>>,
+        tweak: impl FnOnce(&mut TorrentSettings),
+    ) -> Node {
         let dir = tempfile::tempdir().unwrap();
         let data = dir.path().join("data");
         let store = Store::open_in_memory().await.unwrap();
@@ -326,10 +336,12 @@ mod service {
         t.lsd = false;
         t.upnp = false;
         t.utp = false;
+        tweak(t);
         engine.set_settings(settings).await.unwrap();
         let mut opts = ServiceOptions::new(&data, dir.path().join("downloads"));
         opts.listen_ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
         opts.listen_port_override = Some(0);
+        opts.watch_interval = Duration::from_millis(200);
         let svc = TorrentService::new(engine.clone(), opts);
         svc.start().await.unwrap();
         assert!(svc.is_running());
@@ -815,6 +827,262 @@ mod service {
         assert!(t.uploaded_total >= FILE_LEN as u64, "upload total survives");
         assert!(a.svc.torrent_file(&id).await.is_ok());
 
+        b.svc.stop().await;
+        a.svc.stop().await;
+    }
+
+    /// A clock that reads Monday at the hour in `hour`.
+    fn monday(hour: &Arc<AtomicU8>) -> Clock {
+        let hour = hour.clone();
+        Arc::new(move || Moment::new(1_800_000_000_000, 0, hour.load(Ordering::SeqCst)))
+    }
+
+    async fn apply(node: &Node, tweak: impl FnOnce(&mut TorrentSettings)) {
+        let mut settings = node.engine.settings();
+        tweak(&mut settings.torrents);
+        let saved = node.engine.set_settings(settings).await.unwrap();
+        node.svc.apply_settings(&saved).await.unwrap();
+    }
+
+    async fn wait_limits(svc: &TorrentService, want: SpeedLimits) {
+        let started = Instant::now();
+        while svc.applied_limits() != Some(want) {
+            assert!(
+                started.elapsed() < Duration::from_secs(20),
+                "limits are {:?}, want {want:?}",
+                svc.applied_limits()
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn seed_ratio_one_marks_done_and_pauses() {
+        let a = node_with(Vec::new(), |t| t.seed_ratio = Some(1.0)).await;
+        let b = node(Vec::new()).await;
+        let (id, magnet, _) = seed(&a, "payload.bin", 7).await;
+        b.svc
+            .add(AddRequest::new(AddSource::Magnet(magnet)))
+            .await
+            .unwrap();
+        // A uploads the whole file to B: ratio 1.0.
+        let t = wait(&a.svc, &id, "seeder done", |t| {
+            t.state == TorrentState::Done
+        })
+        .await;
+        assert!(t.done);
+        assert!(t.uploaded_total >= FILE_LEN as u64);
+        let details = a.svc.details(&id).await.unwrap();
+        assert!(details.summary.done);
+        assert!(details.seeding_since.is_some());
+        wait(&b.svc, &id, "leecher seeds", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+
+        // The mark survives a restart, and a higher limit seeds again.
+        a.svc.stop().await;
+        a.svc.start().await.unwrap();
+        wait(&a.svc, &id, "still done", |t| t.state == TorrentState::Done).await;
+        apply(&a, |t| t.seed_ratio = Some(5.0)).await;
+        let t = wait(&a.svc, &id, "seeding again", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+        assert!(!t.done);
+
+        // A per-torrent override wins over the global limit.
+        let patch = TorrentPatch {
+            seed: Some(SeedLimits {
+                ratio: Some(0.5),
+                minutes: None,
+            }),
+            ..TorrentPatch::default()
+        };
+        a.svc.update(&id, patch).await.unwrap();
+        wait(&a.svc, &id, "done by override", |t| {
+            t.state == TorrentState::Done
+        })
+        .await;
+        b.svc.stop().await;
+        a.svc.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn schedule_follows_the_injected_clock() {
+        let limits = SpeedLimits {
+            down_kib: Some(5000),
+            up_kib: None,
+        };
+        let alt_limits = SpeedLimits {
+            down_kib: Some(1000),
+            up_kib: Some(500),
+        };
+        // Monday 10:00 off, 11:00 alternative speed, 12:00 seed only.
+        let mut cells = vec!['n'; WeekGrid::LEN];
+        cells[10] = 'o';
+        cells[11] = 'a';
+        cells[12] = 's';
+        let grid = WeekGrid(cells.into_iter().collect());
+        let a = node(Vec::new()).await;
+        let b = node_with(Vec::new(), |t| {
+            t.limits = limits;
+            t.alt_limits = alt_limits;
+            t.schedule = Some(grid);
+        })
+        .await;
+        let hour = Arc::new(AtomicU8::new(10));
+        b.svc.set_clock(monday(&hour));
+        let (id, magnet, data) = seed(&a, "payload.bin", 8).await;
+
+        // Off pauses everything, a forced torrent too.
+        b.svc
+            .add(AddRequest::new(AddSource::Magnet(magnet)))
+            .await
+            .unwrap();
+        b.svc
+            .update(&id, action(TorrentAction::ForceStart))
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+        let t = b.svc.list().await.unwrap().remove(0);
+        assert_eq!(t.state, TorrentState::ScheduledOff);
+        assert_eq!(t.have, 0);
+        let stats = b.svc.stats().await.unwrap();
+        assert_eq!(stats.schedule_mode, ScheduleMode::Off);
+        wait_limits(&b.svc, limits).await;
+
+        // Alternative speed applies the alternative limits and downloads.
+        hour.store(11, Ordering::SeqCst);
+        wait_limits(&b.svc, alt_limits).await;
+        let t = wait(&b.svc, &id, "downloaded", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+        assert!((t.progress - 1.0).abs() < f64::EPSILON);
+        assert!(std::fs::read(b.downloads().join("payload.bin")).unwrap() == data);
+
+        // Seed only holds downloads, not seeds.
+        hour.store(12, Ordering::SeqCst);
+        wait_limits(&b.svc, limits).await;
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert_eq!(b.svc.list().await.unwrap()[0].state, TorrentState::Seeding);
+
+        // Off stops the seed too; Normal brings it back.
+        hour.store(10, Ordering::SeqCst);
+        wait(&b.svc, &id, "off", |t| {
+            t.state == TorrentState::ScheduledOff
+        })
+        .await;
+        hour.store(9, Ordering::SeqCst);
+        wait(&b.svc, &id, "normal", |t| t.state == TorrentState::Seeding).await;
+
+        // Turtle mode forces the alternative limits.
+        apply(&b, |t| t.turtle = true).await;
+        wait_limits(&b.svc, alt_limits).await;
+        apply(&b, |t| t.turtle = false).await;
+        wait_limits(&b.svc, limits).await;
+        b.svc.stop().await;
+        a.svc.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn power_and_network_gates() {
+        let limits = SpeedLimits {
+            down_kib: Some(5000),
+            up_kib: None,
+        };
+        let alt_limits = SpeedLimits {
+            down_kib: Some(1000),
+            up_kib: Some(500),
+        };
+        let a = node(Vec::new()).await;
+        let b = node_with(Vec::new(), |t| {
+            t.limits = limits;
+            t.alt_limits = alt_limits;
+            t.on_battery = OnBattery::Pause;
+        })
+        .await;
+        let (id, magnet, _) = seed(&a, "payload.bin", 9).await;
+
+        // Pause: nothing runs on battery.
+        b.svc.set_power(PowerState { on_battery: true }).await;
+        assert!(b.svc.stats().await.unwrap().on_battery);
+        b.svc
+            .add(AddRequest::new(AddSource::Magnet(magnet)))
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let t = b.svc.list().await.unwrap().remove(0);
+        assert_eq!(t.state, TorrentState::OnBattery);
+        assert_eq!(t.have, 0);
+        b.svc.set_power(PowerState { on_battery: false }).await;
+        wait(&b.svc, &id, "downloaded", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+
+        // Alt speed: the alternative limits while on battery.
+        apply(&b, |t| t.on_battery = OnBattery::AltSpeed).await;
+        assert_eq!(b.svc.applied_limits(), Some(limits));
+        b.svc.set_power(PowerState { on_battery: true }).await;
+        assert_eq!(b.svc.applied_limits(), Some(alt_limits));
+        assert_eq!(b.svc.list().await.unwrap()[0].state, TorrentState::Seeding);
+        // Nothing: no effect.
+        apply(&b, |t| t.on_battery = OnBattery::Nothing).await;
+        assert_eq!(b.svc.applied_limits(), Some(limits));
+        b.svc.set_power(PowerState { on_battery: false }).await;
+
+        // The Wi-Fi gate.
+        b.svc.set_network_allowed(false).await;
+        assert!(!b.svc.stats().await.unwrap().network_allowed);
+        wait(&b.svc, &id, "waiting", |t| {
+            t.state == TorrentState::WaitingForNetwork
+        })
+        .await;
+        b.svc.set_network_allowed(true).await;
+        wait(&b.svc, &id, "back", |t| t.state == TorrentState::Seeding).await;
+        b.svc.stop().await;
+        a.svc.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn watched_folder_adds_and_renames() {
+        let a = node(Vec::new()).await;
+        let watch = tempfile::tempdir().unwrap();
+        let dir = watch.path().to_path_buf();
+        let b = node_with(Vec::new(), |t| t.watch_dir = Some(dir)).await;
+        let (id, _, _) = seed(&a, "payload.bin", 10).await;
+        let torrent = a.svc.torrent_file(&id).await.unwrap();
+
+        std::fs::write(watch.path().join("good.torrent"), &torrent).unwrap();
+        std::fs::write(watch.path().join("bad.torrent"), b"not a torrent").unwrap();
+        std::fs::write(watch.path().join("notes.txt"), b"ignored").unwrap();
+        let started = Instant::now();
+        let (added, failed) = (
+            watch.path().join("good.torrent.added"),
+            watch.path().join("bad.torrent.failed"),
+        );
+        while !(added.exists() && failed.exists()) {
+            assert!(started.elapsed() < Duration::from_secs(20), "not renamed");
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert!(!watch.path().join("good.torrent").exists());
+        assert!(!watch.path().join("bad.torrent").exists());
+        assert!(watch.path().join("notes.txt").exists());
+        let list = b.svc.list().await.unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, id);
+        assert_eq!(list[0].source, Origin::Watch);
+
+        // A torrent the client already has counts as added.
+        std::fs::write(watch.path().join("again.torrent"), &torrent).unwrap();
+        let again = watch.path().join("again.torrent.added");
+        while !again.exists() {
+            assert!(started.elapsed() < Duration::from_secs(30), "not renamed");
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert_eq!(b.svc.list().await.unwrap().len(), 1);
         b.svc.stop().await;
         a.svc.stop().await;
     }

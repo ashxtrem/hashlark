@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 use hashlark_core::engine::MAX_TORRENT_BYTES;
 use hashlark_core::model::{DownloadTarget, TargetKind};
-use hashlark_core::store::now_ms;
 use hashlark_core::{Error, Result};
 use librqbit::{AddTorrent, CreateTorrentOptions, Magnet, torrent_from_bytes};
 
@@ -150,7 +149,7 @@ impl TorrentService {
                 save_dir: save_dir.clone(),
                 source: origin,
                 result_id,
-                added_at: now_ms(),
+                added_at: self.now().ms,
                 completed_at: None,
                 seeding_since: None,
                 run_mode: if req.paused {
@@ -277,7 +276,7 @@ impl TorrentService {
         let known = run.state.lock().expect("lock").rows.contains_key(&hash);
         if !known {
             tokio::fs::write(self.inner.opts.created_file(&hash), &bytes).await?;
-            let now = now_ms();
+            let now = self.now().ms;
             let queue_pos = {
                 let st = run.state.lock().expect("lock");
                 st.rows.values().map(|r| r.queue_pos + 1).max().unwrap_or(0)
