@@ -14,7 +14,8 @@ import android.os.Build
  * (`torrents.unmetered_only` off). The core pauses everything with
  * "Waiting for Wi-Fi" while [allowed] is false.
  *
- * [onChange] gets the new answer whenever it changes, and once at the start.
+ * [onChange] gets the new answer whenever it changes, and once at the start —
+ * after the first [setUnmeteredOnly], so it never acts on a guessed setting.
  */
 class NetworkGate(
     private val context: Context,
@@ -23,8 +24,9 @@ class NetworkGate(
     @Volatile
     private var unmetered: Boolean = false
 
+    /** Null until the service has read the user's setting; nothing is published before that. */
     @Volatile
-    private var unmeteredOnly: Boolean = true
+    private var unmeteredOnly: Boolean? = null
 
     private var last: Boolean? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
@@ -63,7 +65,9 @@ class NetworkGate(
 
     @Synchronized
     private fun publish() {
-        val now = allowed(unmetered, unmeteredOnly)
+        // Guessing the setting would flash "Waiting for Wi-Fi" for users who allow mobile data.
+        val only = unmeteredOnly ?: return
+        val now = allowed(unmetered, only)
         if (now != last) {
             last = now
             onChange(now)

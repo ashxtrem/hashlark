@@ -69,6 +69,20 @@ class TorrentServiceTest {
         assertTrue(NetworkGate.allowed(unmetered = true, unmeteredOnly = false))
     }
 
+    @Test
+    fun `the network gate says nothing until it knows the user's setting`() {
+        val seen = mutableListOf<Boolean>()
+        val gate = NetworkGate(RuntimeEnvironment.getApplication()) { seen += it }
+        gate.start()
+        // No guessed "Waiting for Wi-Fi" for a user who allows mobile data.
+        assertEquals(emptyList<Boolean>(), seen)
+        gate.setUnmeteredOnly(false)
+        assertEquals(listOf(true), seen)
+        gate.setUnmeteredOnly(false)
+        assertEquals(listOf(true), seen)
+        gate.stop()
+    }
+
     // ----- battery gate --------------------------------------------------------------
 
     @Test
