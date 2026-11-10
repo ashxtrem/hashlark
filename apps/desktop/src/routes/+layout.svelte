@@ -13,13 +13,16 @@
   import WelcomeDialog from '$components/WelcomeDialog.svelte';
   import { app } from '$lib/state/app.svelte';
   import { favorites } from '$lib/state/favorites.svelte';
+  import { lan } from '$lib/state/lan.svelte';
   import { providers } from '$lib/state/providers.svelte';
 
   let { children }: { children: Snippet } = $props();
 
   onMount(async () => {
     await app.connect();
-    if (app.connection === 'ready') await Promise.all([providers.load(), favorites.load()]);
+    if (app.connection === 'ready') {
+      await Promise.all([providers.load(), favorites.load(), lan.listen()]);
+    }
   });
 </script>
 

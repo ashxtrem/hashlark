@@ -17,11 +17,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -57,6 +62,8 @@ import io.github.ashxtrem.hashlark.core.DohResolver
 import io.github.ashxtrem.hashlark.core.Settings
 import io.github.ashxtrem.hashlark.core.Theme
 import io.github.ashxtrem.hashlark.core.TorMode
+import io.github.ashxtrem.hashlark.core.LanDevice
+import io.github.ashxtrem.hashlark.core.LanPlatform
 import io.github.ashxtrem.hashlark.core.TorStatus
 import io.github.ashxtrem.hashlark.ffi.coreVersion
 import io.github.ashxtrem.hashlark.hashlark
@@ -74,6 +81,7 @@ private enum class Section(val title: String, val summary: String, val icon: Ima
     Search("Search", "Timeouts, concurrency, history", Icons.Filled.Search),
     Network("Network and privacy", "Encrypted DNS, proxy, Tor", Icons.Filled.Lock),
     Magnets("Magnets and downloads", "Torrent client, trackers, .torrent files", Icons.Filled.Tag),
+    Devices("Devices on this network", "Send results to your computer", Icons.Filled.Devices),
     Appearance("Appearance and updates", "Theme, colours, update check", Icons.Filled.Palette),
     About("About", "Version, licence, privacy", Icons.Filled.Info),
 }
@@ -149,6 +157,7 @@ private fun SectionScreen(section: Section, settings: Settings, vm: SettingsView
                 Section.Search -> SearchSection(settings, vm)
                 Section.Network -> NetworkSection(settings, vm, app)
                 Section.Magnets -> MagnetsSection(settings, vm, app)
+                Section.Devices -> DevicesSection()
                 Section.Appearance -> AppearanceSection(settings, vm)
                 Section.About -> AboutSection()
             }
@@ -368,6 +377,61 @@ private fun AppearanceSection(settings: Settings, vm: SettingsViewModel) {
         { v -> vm.edit { it.copy(updates = it.updates.copy(checkForUpdates = v)) } },
         description = "Asks GitHub for the latest published release. Nothing else is sent, and Hashlark never installs updates itself.",
     )
+}
+
+/** LAN sharing: on/off, this phone's name and the paired devices. Applies at once, not on Save. */
+@Composable
+private fun DevicesSection() {
+    val lan = LocalContext.current.hashlark.lan
+    val state by lan.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var forgetting by remember { mutableStateOf<LanDevice?>(null) }
+
+    SwitchRow(
+        "Find computers on this network",
+        state.enabled,
+        { on -> scope.launch { lan.setEnabled(on) } },
+        description = "While Hashlark is open, it looks for Hashlark on computers on the same Wi-Fi, so " +
+            "Send to computer can hand them results. Only devices you pair can send links to this phone.",
+    )
+    state.error?.let { Text("Couldn't start: $it", color = MaterialTheme.colorScheme.error) }
+    if (state.running && state.name != null) {
+        Text("This phone appears as ${state.name}.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    SectionTitle("Paired devices")
+    val paired = state.devices.filter { it.paired }
+    if (paired.isEmpty()) {
+        Text(
+            if (state.running) "None yet. Choose Send to computer on a result to pair." else "Shown while finding computers is on.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    paired.forEach { device ->
+        ListItem(
+            headlineContent = { Text(device.name) },
+            supportingContent = { Text(if (device.online) "On this network" else "Not seen right now") },
+            leadingContent = {
+                Icon(if (device.platform == LanPlatform.Android) Icons.Filled.Smartphone else Icons.Filled.Computer, contentDescription = null)
+            },
+            trailingContent = {
+                IconButton(onClick = { forgetting = device }) { Icon(Icons.Filled.Delete, contentDescription = "Forget ${device.name}") }
+            },
+        )
+    }
+    forgetting?.let { device ->
+        AlertDialog(
+            onDismissRequest = { forgetting = null },
+            title = { Text("Forget ${device.name}?") },
+            text = { Text("This phone won't be able to send to it, or receive from it, until you pair again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    forgetting = null
+                    scope.launch { runCatching { lan.forget(device.id) } }
+                }) { Text("Forget") }
+            },
+            dismissButton = { TextButton(onClick = { forgetting = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable

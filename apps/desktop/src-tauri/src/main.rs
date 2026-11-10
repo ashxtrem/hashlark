@@ -4,15 +4,17 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod lan;
 mod magnet_handler;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use hashlark_core::engine::EngineOptions;
 use hashlark_core::secrets::{KeychainSecretStore, SecretStore};
 use hashlark_core::{AppPaths, Engine};
 use hashlark_server::{LocalServer, serve_local};
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
 
@@ -21,12 +23,15 @@ use tracing_subscriber::EnvFilter;
 pub struct Backend {
     pub engine: Engine,
     pub server: LocalServer,
+    pub secrets: Arc<dyn SecretStore>,
+    pub data_dir: PathBuf,
 }
 
 async fn start_backend() -> anyhow::Result<Backend> {
     let paths = AppPaths::resolve(None)?;
+    let data_dir = paths.data_dir().to_path_buf();
     let secrets: Arc<dyn SecretStore> = Arc::new(KeychainSecretStore::new("Hashlark"));
-    let engine = Engine::open(paths, EngineOptions::new(secrets)).await?;
+    let engine = Engine::open(paths, EngineOptions::new(Arc::clone(&secrets))).await?;
     // For writing definitions: load and live-reload a folder of YAML files.
     if let Some(dir) = std::env::var_os("HASHLARK_DEFINITIONS_DIR") {
         engine.watch_definitions(dir.into()).await?;
@@ -34,7 +39,12 @@ async fn start_backend() -> anyhow::Result<Backend> {
     engine.start_background_tasks();
     let server = serve_local(engine.clone()).await?;
     tracing::info!(api = %server.base_url(), "backend started");
-    Ok(Backend { engine, server })
+    Ok(Backend {
+        engine,
+        server,
+        secrets,
+        data_dir,
+    })
 }
 
 fn main() {
@@ -60,7 +70,18 @@ fn main() {
         .setup(
             |app| match tauri::async_runtime::block_on(start_backend()) {
                 Ok(backend) => {
+                    let lan = lan::Lan::new(
+                        app.handle().clone(),
+                        Arc::clone(&backend.secrets),
+                        &backend.data_dir,
+                    );
                     app.manage(backend);
+                    app.manage(lan);
+                    // Start LAN sharing (if on) without delaying the window.
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        handle.state::<lan::Lan>().start_if_enabled().await;
+                    });
                     Ok(())
                 }
                 Err(e) => {
@@ -83,7 +104,21 @@ fn main() {
             commands::magnet_handler_status,
             commands::open_challenge,
             commands::finish_challenge,
+            lan::lan_status,
+            lan::lan_set_enabled,
+            lan::lan_devices,
+            lan::lan_open_pairing,
+            lan::lan_close_pairing,
+            lan::lan_forget,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Hashlark");
+        .build(tauri::generate_context!())
+        .expect("error while building Hashlark")
+        .run(|app, event| {
+            // Say goodbye on the network so phones drop this computer at once.
+            if let RunEvent::Exit = event
+                && let Some(lan) = app.try_state::<lan::Lan>()
+            {
+                tauri::async_runtime::block_on(lan.stop());
+            }
+        });
 }

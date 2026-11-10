@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Finding Hashlark on computers on the same Wi-Fi (mDNS needs the multicast lock). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- Android 11+ package visibility: lets the app see which torrent clients handle magnet: links. -->
     <queries>

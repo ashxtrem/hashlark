@@ -79,6 +79,59 @@ export async function finishChallenge(providerId: string, url: string): Promise<
   });
 }
 
+/** Subscribes to an event from the Rust side; returns the unsubscribe function. */
+export async function listenTauri<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<T>(event, (e) => handler(e.payload));
+}
+
+// ----- LAN sharing (desktop only) -------------------------------------------
+
+export interface LanDevice {
+  id: string;
+  name: string;
+  platform: 'desktop' | 'android';
+  /** This computer holds a key for it. */
+  paired: boolean;
+  /** Seen on the network right now. */
+  online: boolean;
+  addr: string | null;
+}
+
+export interface PairingCode {
+  pin: string;
+  /** Unix milliseconds. */
+  expires_at: number;
+}
+
+export interface LanStatus {
+  enabled: boolean;
+  running: boolean;
+  name: string | null;
+  /** `ip:port` to type on a phone when it can't find this computer. */
+  addresses: string[];
+  discovery_error: string | null;
+  pairing: PairingCode | null;
+  error: string | null;
+}
+
+/** A link a paired device sent, after it was handed to the torrent client. */
+export interface LanReceived {
+  from: string;
+  title: string;
+  url: string;
+  outcome: { status: 'opened' } | { status: 'no_handler' } | { status: 'failed'; message: string };
+}
+
+export const lanApi = {
+  status: () => invoke<LanStatus>('lan_status'),
+  setEnabled: (enabled: boolean) => invoke<LanStatus>('lan_set_enabled', { enabled }),
+  devices: () => invoke<LanDevice[]>('lan_devices'),
+  openPairing: () => invoke<PairingCode>('lan_open_pairing'),
+  closePairing: () => invoke<void>('lan_close_pairing'),
+  forget: (deviceId: string) => invoke<void>('lan_forget', { deviceId }),
+};
+
 export async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }

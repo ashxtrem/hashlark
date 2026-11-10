@@ -14,6 +14,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 hashlark-core = { version = "0.1.2", path = "../hashlark-core", default-features = false, features = ["tor"] }
+hashlark-lan = { version = "0.1.2", path = "../hashlark-lan" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = "2.0.21"

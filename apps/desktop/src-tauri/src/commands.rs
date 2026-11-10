@@ -39,6 +39,12 @@ pub enum OpenOutcome {
 /// Hands a magnet link to the app the OS has registered for it (ADR 0008).
 #[tauri::command]
 pub fn open_magnet(app: AppHandle, url: String) -> Result<OpenOutcome, String> {
+    hand_off_magnet(&app, &url)
+}
+
+/// Opens `url` in the registered torrent client. Also used for links that
+/// arrive from a paired phone.
+pub fn hand_off_magnet(app: &AppHandle, url: &str) -> Result<OpenOutcome, String> {
     if !url.starts_with("magnet:?") {
         return Err("not a magnet link".into());
     }

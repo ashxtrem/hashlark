@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm)
+        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, hashlarkApp.lan)
         if (savedInstanceState == null) handle(intent)
 
         // Recent searches become launcher shortcuts once a search has finished.
@@ -87,6 +87,17 @@ class MainActivity : ComponentActivity() {
                 HashlarkRoot(screens, pendingDefinition, onDefinitionHandled = { pendingDefinition = null })
             }
         }
+    }
+
+    // LAN sharing runs only while Hashlark is on screen (no background service).
+    override fun onStart() {
+        super.onStart()
+        hashlarkApp.lan.onForeground()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        hashlarkApp.lan.onBackground()
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -24,6 +24,9 @@ use url::Url;
 
 uniffi::setup_scaffolding!();
 
+mod lan;
+pub use lan::{HashlarkLan, LanListener, lan_local_addresses, open_lan};
+
 /// Version of the core, for the About screen and the update check.
 #[uniffi::export]
 pub fn core_version() -> String {

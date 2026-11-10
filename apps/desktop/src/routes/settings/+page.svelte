@@ -3,6 +3,7 @@
   import { FolderOpen, Monitor, Moon, RefreshCw, Sun } from '@lucide/svelte';
   import type { Settings } from '$lib/api/client';
   import ApiKeysPanel from '$components/ApiKeysPanel.svelte';
+  import DevicesPanel from '$components/DevicesPanel.svelte';
   import Switch from '$components/Switch.svelte';
   import { isTauri, pickFolder } from '$lib/platform';
   import { app } from '$lib/state/app.svelte';
@@ -242,6 +243,11 @@
       <p class="hint">Magnet links go straight to the torrent client your system uses for them.</p>
     </div>
   </section>
+
+  {#if isTauri()}
+    <!-- Applies at once rather than on Save; it has only plain buttons, so it can sit in the form. -->
+    <DevicesPanel />
+  {/if}
 
   <section class="card space-y-4 p-5">
     <h2 class="font-semibold">Appearance &amp; updates</h2>

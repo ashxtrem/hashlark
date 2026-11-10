@@ -280,3 +280,107 @@ fn small_helpers_behave() {
     assert!(user_agent().contains("Hashlark"));
     assert_eq!(core_version(), hashlark_core::VERSION);
 }
+
+// ----- LAN sharing ---------------------------------------------------------------
+
+#[derive(Default)]
+struct LanLog {
+    received: Mutex<Vec<Value>>,
+    paired: Mutex<Vec<Value>>,
+}
+
+impl LanListener for LanLog {
+    fn on_received(&self, received_json: String) {
+        self.received
+            .lock()
+            .unwrap()
+            .push(serde_json::from_str(&received_json).expect("valid Received JSON"));
+    }
+    fn on_devices_changed(&self) {}
+    fn on_paired(&self, device_json: String) {
+        self.paired
+            .lock()
+            .unwrap()
+            .push(serde_json::from_str(&device_json).expect("valid Device JSON"));
+    }
+    fn on_pairing_changed(&self, code_json: Option<String>) {
+        if let Some(json) = code_json {
+            let code: Value = serde_json::from_str(&json).expect("valid PairingCode JSON");
+            assert_eq!(code["pin"].as_str().unwrap().len(), 6);
+        }
+    }
+}
+
+async fn lan(name: &str) -> (Arc<HashlarkLan>, Arc<LanLog>) {
+    let log = Arc::new(LanLog::default());
+    let lan = lan::open_test_lan(name, Arc::new(Secrets::default()), log.clone())
+        .await
+        .unwrap();
+    (lan, log)
+}
+
+fn code_of(result: Result<impl std::fmt::Debug, HashlarkError>) -> String {
+    match result.unwrap_err() {
+        HashlarkError::Failed { code, .. } => code,
+    }
+}
+
+#[tokio::test]
+async fn lan_pairs_and_sends_through_the_ffi() {
+    const MAGNET: &str = "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c";
+    let (phone, _) = lan("Pixel").await;
+    let (desk, desk_log) = lan("Desk").await;
+    let hello: Value = serde_json::from_str(&desk.identity().unwrap()).unwrap();
+    let desk_id = hello["id"].as_str().unwrap().to_owned();
+    let addr = format!("127.0.0.1:{}", hello["port"]);
+
+    // Not paired yet: sending is refused locally.
+    let found: Value =
+        serde_json::from_str(&phone.clone().add_address(addr).await.unwrap()).unwrap();
+    assert_eq!(found["paired"], false);
+    assert_eq!(found["platform"], "android");
+    let err = phone
+        .clone()
+        .send_magnet(desk_id.clone(), MAGNET.into(), "x".into())
+        .await;
+    assert_eq!(code_of(err), "not_paired");
+
+    // Pairing is closed until the desktop opens it.
+    let err = phone.clone().pair(desk_id.clone(), "123456".into()).await;
+    assert_eq!(code_of(err), "pairing_closed");
+
+    let code: Value = serde_json::from_str(&desk.open_pairing().unwrap()).unwrap();
+    assert!(desk.pairing().unwrap().is_some());
+    let pin = code["pin"].as_str().unwrap().to_owned();
+    let wrong = if pin == "000000" { "111111" } else { "000000" };
+    let err = phone.clone().pair(desk_id.clone(), wrong.into()).await;
+    assert_eq!(code_of(err), "wrong_pin");
+
+    let paired: Value =
+        serde_json::from_str(&phone.clone().pair(desk_id.clone(), pin).await.unwrap()).unwrap();
+    assert_eq!(paired["paired"], true);
+    assert_eq!(paired["name"], "Desk");
+    let devices: Value = serde_json::from_str(&phone.devices().unwrap()).unwrap();
+    assert_eq!(devices.as_array().unwrap().len(), 1);
+
+    phone
+        .clone()
+        .send_magnet(desk_id, MAGNET.into(), "Big Buck Bunny".into())
+        .await
+        .unwrap();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let received = loop {
+        if let Some(r) = desk_log.received.lock().unwrap().first().cloned() {
+            break r;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "nothing received");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    };
+    assert_eq!(received["url"], MAGNET);
+    assert_eq!(received["title"], "Big Buck Bunny");
+    assert_eq!(received["from"]["name"], "Pixel");
+    assert_eq!(desk_log.paired.lock().unwrap().len(), 1);
+
+    phone.shutdown().await.unwrap();
+    desk.shutdown().await.unwrap();
+}

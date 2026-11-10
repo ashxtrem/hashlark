@@ -17,7 +17,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 /**
  * Preferences that only make sense on this device and are not part of the
  * core's settings: which torrent client to use, whether to use system colours,
- * which update notice was dismissed.
+ * which update notice was dismissed, whether to look for computers on the LAN.
  */
 class AppPrefs(context: Context) {
     private val store = context.applicationContext.dataStore
@@ -31,6 +31,9 @@ class AppPrefs(context: Context) {
     /** Version of the update notice the user dismissed. */
     val dismissedUpdate: Flow<String?> = store.data.map { it[DISMISSED_UPDATE] }
 
+    /** Find computers on the same network (and accept links from paired ones) while the app is open. */
+    val lanEnabled: Flow<Boolean> = store.data.map { it[LAN_ENABLED] ?: true }
+
     suspend fun setMagnetPackage(packageName: String?) = store.edit {
         if (packageName == null) it.remove(MAGNET_PACKAGE) else it[MAGNET_PACKAGE] = packageName
     }
@@ -39,9 +42,12 @@ class AppPrefs(context: Context) {
 
     suspend fun dismissUpdate(version: String) = store.edit { it[DISMISSED_UPDATE] = version }
 
+    suspend fun setLanEnabled(enabled: Boolean) = store.edit { it[LAN_ENABLED] = enabled }
+
     private companion object {
         val MAGNET_PACKAGE = stringPreferencesKey("magnet_package")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val DISMISSED_UPDATE = stringPreferencesKey("dismissed_update")
+        val LAN_ENABLED = booleanPreferencesKey("lan_enabled")
     }
 }

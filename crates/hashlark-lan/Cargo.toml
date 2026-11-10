@@ -1,0 +1,36 @@
+[package]
+name = "hashlark-lan"
+description = "Send results between Hashlark devices on the local network"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+chacha20poly1305 = "0.11.0"
+data-encoding = "2.11.1"
+getrandom = "0.4.3"
+governor = "0.10.4"
+hashlark-core = { version = "0.1.2", path = "../hashlark-core", default-features = false }
+hkdf = "0.12.4"
+hmac = "0.12.1"
+if-addrs = "0.15.0"
+mdns-sd = { version = "0.21.7", default-features = false, features = ["async"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2-10 = { package = "sha2", version = "0.10.9" }
+spake2 = "0.4.0"
+subtle = "2.6.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "test-util"] }
+
+[lints]
+workspace = true

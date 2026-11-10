@@ -20,11 +20,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import io.github.ashxtrem.hashlark.challenge.ChallengeActivity
 import io.github.ashxtrem.hashlark.core.DownloadTarget
+import io.github.ashxtrem.hashlark.core.LanReceived
 import io.github.ashxtrem.hashlark.core.MergedResult
 import io.github.ashxtrem.hashlark.core.TargetPreference
 import io.github.ashxtrem.hashlark.hashlark
 import io.github.ashxtrem.hashlark.system.MagnetLauncher
 import io.github.ashxtrem.hashlark.system.TorrentFiles
+import io.github.ashxtrem.hashlark.ui.lan.SendTarget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -46,6 +48,9 @@ class ResultActions(
     /** A magnet no app could open; the UI offers to copy or share it. */
     var noHandlerMagnet: String? by mutableStateOf(null)
 
+    /** A magnet waiting in the "Send to…" sheet. */
+    var sendTarget: SendTarget? by mutableStateOf(null)
+
     /** Opens the result in the user's torrent client (ADR 0008). */
     fun open(result: MergedResult) {
         scope.launch {
@@ -61,6 +66,30 @@ class ResultActions(
         val preferred = context.hashlark.prefs.magnetPackage.first()
         if (MagnetLauncher.open(context, magnet, preferred) == MagnetLauncher.Outcome.NoHandler) {
             noHandlerMagnet = magnet
+        }
+    }
+
+    /** Opens the "Send to…" sheet to hand the result to a computer on the same network. */
+    fun sendToDevice(result: MergedResult) {
+        scope.launch {
+            val target = app.withApi("Could not get the magnet link") { it.resolve(result.id, TargetPreference.Magnet) }
+                ?: return@launch
+            if (target is DownloadTarget.Magnet) {
+                sendTarget = SendTarget(result.primary.title, target.url)
+            } else {
+                app.say("This result has no magnet link, so it can't be sent to a computer.")
+            }
+        }
+    }
+
+    /** A paired computer sent a link: open it in this phone's torrent client. */
+    fun openReceived(item: LanReceived) {
+        scope.launch {
+            openMagnet(item.url)
+            if (noHandlerMagnet == null) {
+                val what = item.title.ifBlank { "a link" }
+                app.say("Opened “$what” from ${item.from.name}")
+            }
         }
     }
 
