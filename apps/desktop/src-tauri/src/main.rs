@@ -76,6 +76,12 @@ async fn start_backend() -> anyhow::Result<Backend> {
 }
 
 fn main() {
+    // The updater plugin turns on rustls' `ring` backend and reqwest and
+    // axum-server turn on `aws-lc-rs`. With both on, rustls can't choose a
+    // default and panics at the first TLS connection, so choose one here,
+    // before anything connects. `Err` only means one is already installed.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
