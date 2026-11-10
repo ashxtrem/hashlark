@@ -74,6 +74,9 @@ data class PendingAdd(
     val stage: AddStage,
 )
 
+/** An add that waits for the built-in client to be turned on. */
+data class ClientOffPrompt(val source: AddSource, val title: String? = null)
+
 /**
  * State shared by every screen: settings, the provider list, messages for the
  * snackbar, update notice. It lives in the activity's ViewModel store, so it
@@ -216,6 +219,18 @@ class AppViewModel(
     /** The add that waits for the one-time notice, the Add sheet or the permission prompts. */
     val pendingAdd: StateFlow<PendingAdd?> = _pendingAdd.asStateFlow()
 
+    private val _clientOffPrompt = MutableStateFlow<ClientOffPrompt?>(null)
+
+    /**
+     * An add that came while the built-in client is off. The UI shows the "No torrent client" dialog
+     * for a magnet, else a prompt to turn the client on, and calls [dismissClientOffPrompt] when it has.
+     */
+    val clientOffPrompt: StateFlow<ClientOffPrompt?> = _clientOffPrompt.asStateFlow()
+
+    fun dismissClientOffPrompt() {
+        _clientOffPrompt.value = null
+    }
+
     private val _torrentIds = MutableStateFlow<Set<String>>(emptySet())
 
     /** Info hashes in the built-in client, for the "In downloads" badge on results. */
@@ -234,6 +249,11 @@ class AppViewModel(
      */
     fun requestAdd(source: AddSource, title: String? = null, withOptions: Boolean = false, from: String? = null) {
         val torrents = _settings.value?.torrents ?: return
+        if (!torrents.enabled) {
+            // No notice or permission prompts for an add that cannot happen: offer to turn the client on.
+            _clientOffPrompt.value = ClientOffPrompt(source, title)
+            return
+        }
         val options = withOptions || torrents.askOnAdd
         _pendingAdd.value = PendingAdd(
             request = AddRequest(source),

@@ -55,6 +55,8 @@ roots = ["/downloads"]        # default: [download_dir]
     -v hashlark-data:/data -v /srv/downloads:/downloads ghcr.io/ashxtrem/hashlark:latest
   ```
 
+  A host folder bind-mounted at `/downloads` must be writable by uid 10001, the server's user (for example `chown 10001 /srv/downloads`). The `docker-compose.yml` uses a named volume, which already is.
+
 - **Publish port 6881 over TCP and UDP.** Peers connect to it for incoming connections. Without it, the client still works, but only makes outgoing connections. Add these lines under `ports` in your `docker-compose.yml`:
 
   ```yaml

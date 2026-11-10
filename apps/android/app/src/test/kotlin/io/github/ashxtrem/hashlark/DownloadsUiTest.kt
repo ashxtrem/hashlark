@@ -374,6 +374,47 @@ class DownloadsUiTest {
         assertFalse(h.text("No torrent client found"))
     }
 
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_magnet_link_with_the_client_off_offers_to_turn_it_on_without_the_notice() {
+        val h = harness(noticeAccepted = false, enabled = false)
+        h.showApp()
+        compose.waitUntil(5_000) { h.app.settings.value != null }
+        compose.runOnIdle { h.app.post(AppEvent.AddTorrent(AddSource.Magnet("magnet:?xt=urn:btih:66"))) }
+        compose.waitUntil(5_000) { h.text("No torrent client found") }
+        assertTrue(h.text("Turn on the built-in client", substring = true))
+        assertFalse(h.text("shows your IP address", substring = true))
+        assertNull(h.app.pendingAdd.value)
+        assertTrue(h.api.adds.isEmpty())
+
+        // Turning it on retries the add, which then goes through the notice.
+        compose.onNodeWithText("Turn on the built-in client").performClick()
+        compose.waitUntil(5_000) { h.text("shows your IP address", substring = true) }
+        assertTrue(h.api.settings.torrents.enabled)
+        assertFalse(h.text("No torrent client found"))
+        compose.onNodeWithText("I understand").performClick()
+        compose.waitUntil(5_000) { h.api.adds.isNotEmpty() }
+        assertEquals(AddSource.Magnet("magnet:?xt=urn:btih:66"), h.api.adds.single().source)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun a_torrent_file_with_the_client_off_asks_to_turn_it_on_and_retries() {
+        val h = harness(enabled = false)
+        h.showApp()
+        compose.waitUntil(5_000) { h.app.settings.value != null }
+        compose.runOnIdle { h.app.post(AppEvent.AddTorrent(AddSource.Torrent("ZGF0YQ=="))) }
+        compose.waitUntil(5_000) { h.text("The built-in client is off") }
+        assertNull(h.app.pendingAdd.value)
+        assertTrue(h.api.adds.isEmpty())
+
+        compose.onNodeWithText("Turn on the built-in client").performClick()
+        compose.waitUntil(5_000) { h.api.adds.isNotEmpty() }
+        assertTrue(h.api.settings.torrents.enabled)
+        assertEquals(AddSource.Torrent("ZGF0YQ=="), h.api.adds.single().source)
+        assertFalse(h.text("The built-in client is off"))
+    }
+
     private fun showActions(h: SearchHarness): () -> ResultActions {
         var actions: ResultActions? = null
         compose.setContent {
