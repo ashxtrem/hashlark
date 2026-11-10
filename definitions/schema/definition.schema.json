@@ -422,6 +422,14 @@
     "Search": {
       "type": "object",
       "properties": {
+        "body": {
+          "description": "POST only: the request body, as a template (e.g. JSON built with\n`{{ query.text | tojson }}`). With a body, `params` go in the query\nstring, and `Content-Type` is `application/json` unless `headers`\nset it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "client_filter": {
           "description": "Keep only rows whose title contains every query word. Implied by\n`static_feed`.",
           "type": "boolean",

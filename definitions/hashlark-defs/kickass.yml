@@ -1,0 +1,56 @@
+schema: 1
+id: kickass
+name: Kickass Torrents
+description: General public tracker with big movie and TV sections
+language: en
+version: 1
+links:
+  - https://kickasstorrents.to/
+caps:
+  categories:
+    movies: movies
+    tv: tv
+    music: music
+    games: games
+    software: applications
+    books: books
+    anime: anime
+    other: other
+search:
+  # The site filters by one category at a time.
+  path: >-
+    {% if query.site_categories %}search/{{ query.text | urlencode }}/category/{{ query.site_categories | first }}/
+    {%- else %}usearch/{{ query.text | urlencode }}/{% endif %}
+  response: html
+  rows: "table.data tr.odd, table.data tr.even"
+  fields:
+    title:
+      selector: "a.cellMainLink"
+    details:
+      selector: "a.cellMainLink"
+      attr: href
+    size:
+      selector: "td:nth-child(2)"
+    seeders:
+      selector: "td.green"
+    leechers:
+      selector: "td.red"
+    # The age column reads "9<br/>months" in its title.
+    date:
+      selector: "td:nth-child(4)"
+      attr: title
+      optional: true
+      filters:
+        - { re_replace: ["<br\\s*/?>", " "] }
+        - { append: " ago" }
+        - relative_date
+    category:
+      selector: "div.markeredBlock strong a"
+      attr: href
+      optional: true
+      filters:
+        - { regex: "^/([a-z]+)/" }
+download:
+  selector: "a[href^='magnet:']"
+test:
+  query: matrix

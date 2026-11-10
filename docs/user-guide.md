@@ -40,7 +40,7 @@ Click a row for details: infohash, publish date, every site that has it, and a l
 
 Use **Test** to try a provider now. **Details** shows its settings, network route and definition.
 
-Hashlark starts with legal sources only: the Internet Archive, Linuxtracker, Academic Torrents and FOSS Torrents. To add more, use **Add provider**:
+Hashlark starts with legal sources only: the Internet Archive, Linuxtracker, Academic Torrents, FOSS Torrents and Public Domain Torrents (classic films). To add more, use **Add provider**:
 
 - **Definition file:** paste or load a `.yml` definition, check it, preview a search, then add it. Writing definitions is covered in [definition-format.md](definition-format.md).
 - **Jackett / Prowlarr:** enter the Torznab URL and API key to search every indexer configured there, including private trackers.

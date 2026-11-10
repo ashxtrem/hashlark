@@ -13,7 +13,9 @@ use serde_json_path::JsonPath;
 use url::Url;
 
 use super::filters::{self, Filter};
-use super::spec::{Definition, FieldName, FieldSpec, LoginMethod, Mode, ResponseKind, SettingKind};
+use super::spec::{
+    Definition, FieldName, FieldSpec, HttpMethod, LoginMethod, Mode, ResponseKind, SettingKind,
+};
 use super::xmlpath::XmlPath;
 use crate::model::Category;
 
@@ -201,6 +203,12 @@ pub fn compile(spec: Definition) -> Result<CompiledDefinition, DefinitionError> 
     for (k, v) in &spec.search.params {
         add_template(format!("search.params.{k}"), v);
     }
+    if let Some(body) = &spec.search.body {
+        if spec.search.method != HttpMethod::Post {
+            errors.push("search.body needs `method: post`".into());
+        }
+        add_template("search.body".into(), body);
+    }
     for (k, v) in spec.headers.iter().chain(&spec.search.headers) {
         add_template(format!("headers.{k}"), v);
     }
@@ -322,6 +330,7 @@ pub fn compile(spec: Definition) -> Result<CompiledDefinition, DefinitionError> 
             .search
             .params
             .values()
+            .chain(&spec.search.body)
             .any(|v| v.contains("query.imdb"))
     {
         errors.push("caps.modes includes `imdb` but no template uses `query.imdb`".into());

@@ -39,6 +39,7 @@ pub fn first_party_definitions() -> Vec<String> {
         include_str!("../../../../definitions/builtin/linuxtracker.yml"),
         include_str!("../../../../definitions/builtin/academic-torrents.yml"),
         include_str!("../../../../definitions/builtin/foss-torrents.yml"),
+        include_str!("../../../../definitions/builtin/public-domain-torrents.yml"),
     ]
     .into_iter()
     .map(str::to_owned)

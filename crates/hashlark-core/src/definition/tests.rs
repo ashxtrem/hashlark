@@ -124,6 +124,41 @@ fn foss_torrents_fixture() {
     );
 }
 
+#[test]
+fn public_domain_torrents_fixture() {
+    let provider = DefinitionProvider::from_yaml(&builtin("public-domain-torrents")).unwrap();
+    let url: Url = "https://www.publicdomaintorrents.info/nshowcat.html?category=ALL"
+        .parse()
+        .unwrap();
+    let body = fixture("public-domain-torrents/search.html");
+
+    let all = provider
+        .parse_page(
+            &body,
+            &url,
+            &SearchQuery::text("night of the living dead"),
+            &cfg(),
+        )
+        .unwrap();
+    assert_eq!(all.len(), 1, "{all:?}");
+    let film = &all[0];
+    assert_eq!(film.title, "Night of the Living Dead");
+    assert!(film.needs_resolve, "the torrents are on the film's page");
+    assert!(
+        film.details_url
+            .as_ref()
+            .unwrap()
+            .as_str()
+            .starts_with("https://www.publicdomaintorrents.info/nshowmovie.html?movieid=")
+    );
+    assert_eq!(provider.info().categories, vec![Category::Movies]);
+
+    let none = provider
+        .parse_page(&body, &url, &SearchQuery::text("zzqqxx"), &cfg())
+        .unwrap();
+    assert!(none.is_empty(), "static feeds are filtered by the query");
+}
+
 // ----- engine behaviour against a mock server -----------------------------
 
 const HTML_DEF: &str = r#"
@@ -437,6 +472,95 @@ search:
         .search(&ctx, &SearchQuery::text("ubuntu"))
         .await
         .unwrap();
+}
+
+const JSON_BODY_DEF: &str = r#"
+schema: 1
+id: json-body
+name: JSON body
+links: [__BASE__]
+caps:
+  categories: { movies: "3000000", tv: "2000000" }
+search:
+  method: post
+  path: /v1
+  params: { client: hashlark }
+  body: >-
+    {"query": {{ query.text | tojson }}, "size": 50,
+     "categories": [{{ query.site_categories | join(',') }}]}
+  response: json
+  rows: "$.hits[*]"
+  fields:
+    title: { path: "$.title" }
+    info_hash: { path: "$.hash" }
+    seeders: { path: "$.seeders" }
+"#;
+
+#[tokio::test]
+async fn post_searches_can_send_a_json_body() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1"))
+        .and(query_param("client", "hashlark"))
+        .and(header("content-type", "application/json"))
+        .and(wiremock::matchers::body_json(serde_json::json!({
+            "query": "night of the \"living\" dead",
+            "size": 50,
+            "categories": [3000000],
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "hits": [{ "title": "Night of the Living Dead", "hash": "DD8255ECDC7CA55FB0BBF81323D87062DB1F6D1C", "seeders": 9 }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let provider = def_for(&server, JSON_BODY_DEF);
+    let query = SearchQuery {
+        categories: vec![Category::Movies],
+        ..SearchQuery::text("night of the \"living\" dead")
+    };
+    let results = provider
+        .search(&ProviderCtx::new().unwrap(), &query)
+        .await
+        .unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].seeders, Some(9));
+
+    // A body needs POST.
+    let err = load(&JSON_BODY_DEF.replace("method: post", "method: get")).unwrap_err();
+    assert!(err.errors.join("\n").contains("search.body"), "{err}");
+}
+
+#[test]
+fn feeds_with_a_script_after_the_root_still_parse() {
+    let yaml = r#"
+schema: 1
+id: rss-junk
+name: RSS junk
+links: [https://example.org/]
+search:
+  path: rss
+  response: xml
+  rows: "//item"
+  fields:
+    title: { path: title }
+    info_hash: { path: hash }
+"#;
+    let provider = DefinitionProvider::from_yaml(yaml).unwrap();
+    let url: Url = "https://example.org/rss".parse().unwrap();
+    // Cloudflare appends a script like this after `</rss>`.
+    let body = "<?xml version='1.0' encoding='iso-8859-1' ?>\n<!-- feed -->\n<rss version='2.0'><channel>\
+        <item><title>Sintel</title><hash>dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c</hash></item>\
+        </channel></rss>\n<script>if (a < b) { go() }</script>\n";
+    let results = provider
+        .parse_page(body, &url, &SearchQuery::text("sintel"), &cfg())
+        .unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].title, "Sintel");
+
+    let broken = provider.parse_page("<rss><item>", &url, &SearchQuery::text("x"), &cfg());
+    assert!(broken.is_err(), "a truncated document is still an error");
 }
 
 // ----- validation --------------------------------------------------------

@@ -1,0 +1,71 @@
+schema: 1
+id: knaben
+name: Knaben
+description: Meta-search over many public trackers; strong for movies and TV
+language: en
+version: 1
+links:
+  - https://api.knaben.org/
+caps:
+  categories:
+    music: "1000000"
+    tv: "2000000"
+    movies: "3000000"
+    software: "4000000"
+    anime: "6000000"
+    games: "7000000"
+    books: "9000000"
+    other: "10000000"
+  paging:
+    start: 0
+    size: 100
+search:
+  method: post
+  path: v1
+  # The API only takes a JSON body. No categories means all of them.
+  body: >-
+    {"search_type": "100%", "search_field": "title",
+     "query": {{ query.text | tojson }},
+     "order_by": "seeders", "order_direction": "desc",
+     "from": {{ query.offset }}, "size": 100,
+     "hide_unsafe": true, "hide_xxx": true
+     {%- if query.site_categories %}, "categories": [{{ query.site_categories | join(',') }}]{% endif %}}
+  response: json
+  rows: "$.hits[*]"
+  fields:
+    title:
+      path: "$.title"
+    details:
+      path: "$.details"
+      optional: true
+    magnet:
+      path: "$.magnetUrl"
+      optional: true
+    info_hash:
+      path: "$.hash"
+      optional: true
+    size:
+      path: "$.bytes"
+      optional: true
+    seeders:
+      path: "$.seeders"
+      optional: true
+    leechers:
+      path: "$.peers"
+      optional: true
+    date:
+      path: "$.date"
+      optional: true
+    # "Movies / HD" -> movies, "Audio / MP3" -> music, "PC / Mac" -> software.
+    category:
+      path: "$.category"
+      optional: true
+      filters:
+        - { split: ["/", "0"] }
+        - trim
+        - lower
+        - { replace: ["audio", "music"] }
+        - { replace: ["pc", "software"] }
+        - { replace: ["console", "games"] }
+test:
+  query: matrix

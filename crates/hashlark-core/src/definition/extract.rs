@@ -263,6 +263,23 @@ fn json_rows(
     Ok(out)
 }
 
+/// The document up to the end of its root element, if anything follows it.
+/// Some proxies (Cloudflare's script injection) append HTML after `</rss>`,
+/// which strict XML parsers reject.
+fn without_trailing_junk(body: &str) -> Option<&str> {
+    // The root element is the first tag that isn't `<?…>` or `<!…>`.
+    let start = body
+        .match_indices('<')
+        .map(|(i, _)| i + 1)
+        .find(|&i| body[i..].starts_with(|c: char| c.is_alphabetic() || c == '_'))?;
+    let name_len = body[start..]
+        .find(|c: char| c.is_whitespace() || c == '>' || c == '/')
+        .unwrap_or(body.len() - start);
+    let close = format!("</{}>", &body[start..start + name_len]);
+    let end = body.rfind(&close)? + close.len();
+    (end < body.trim_end().len()).then(|| &body[..end])
+}
+
 fn xml_rows(
     def: &CompiledDefinition,
     body: &str,
@@ -270,15 +287,18 @@ fn xml_rows(
     base: &TemplateContext<'_>,
     max_rows: usize,
 ) -> Result<Vec<RawRow>, ProviderError> {
-    let options = roxmltree::ParsingOptions {
-        allow_dtd: true,
-        ..Default::default()
+    let parse = |text| {
+        let options = roxmltree::ParsingOptions {
+            allow_dtd: true,
+            ..Default::default()
+        };
+        roxmltree::Document::parse_with_options(text, options)
     };
-    let doc = roxmltree::Document::parse_with_options(body, options).map_err(|_| {
-        ProviderError::ParseFailed {
+    let doc = parse(body)
+        .or_else(|e| parse(without_trailing_junk(body).ok_or(e)?))
+        .map_err(|_| ProviderError::ParseFailed {
             field: "body (not XML)".into(),
-        }
-    })?;
+        })?;
     let Rows::Xml(rows) = &def.rows else {
         unreachable!("compile checks the response kind")
     };

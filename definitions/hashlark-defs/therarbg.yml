@@ -1,0 +1,56 @@
+schema: 1
+id: therarbg
+name: TheRARBG
+description: Movies and TV, including the old RARBG catalogue; IMDb-id search
+language: en
+version: 1
+links:
+  - https://therarbg.com/
+caps:
+  categories:
+    movies: Movies
+    tv: TV
+    music: Music
+    games: Games
+    software: Apps
+    anime: Anime
+    books: Books
+    other: Other
+  modes: [search, imdb]
+search:
+  # An IMDb id redirects to the title's page, which lists every release.
+  # The site filters by one category at a time.
+  path: >-
+    get-posts/keywords:{{ query.imdb if query.imdb else query.text | urlencode }}
+    {%- if query.site_categories and not query.imdb %}:category:{{ query.site_categories | first }}{% endif %}/
+  response: html
+  # Search pages and IMDb pages share the table but not every column: only
+  # IMDb pages have the magnet in the row, and they have no leechers or date.
+  rows: "table.tt tbody tr"
+  fields:
+    title:
+      selector: "td.n a[href^='/post-detail/']"
+    details:
+      selector: "td.n a[href^='/post-detail/']"
+      attr: href
+    magnet:
+      selector: "td.c a[href^='magnet:']"
+      attr: href
+      optional: true
+    size:
+      selector: "td.s"
+    seeders:
+      selector: "td.se"
+    leechers:
+      selector: "td.le"
+      optional: true
+    date:
+      selector: "td.d"
+      optional: true
+    category:
+      selector: "td.k a"
+      optional: true
+download:
+  selector: "a[href^='magnet:']"
+test:
+  query: matrix
