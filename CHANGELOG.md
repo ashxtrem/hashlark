@@ -25,6 +25,10 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 - XML and RSS results are read even when a proxy appends a script after the closing tag (Cloudflare does this), instead of failing with "not XML".
 - `hashlark-cli defs test --live` resolves names over encrypted DNS like the app, so definitions for sites blocked at the DNS level can be tested; `--system-dns` turns this off.
 
+### Removed
+
+- Releases no longer publish a Docker image to `ghcr.io`, and `docs/deploy/docker-compose.yml` is gone. The `Dockerfile` stays, so you can build the image yourself (see [Running the server](docs/deploy/README.md#docker)).
+
 ## [0.1.2] - 2026-09-29
 
 ### Changed
