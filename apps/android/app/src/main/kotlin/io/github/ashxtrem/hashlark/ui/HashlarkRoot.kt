@@ -57,7 +57,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.system.LanController
+import io.github.ashxtrem.hashlark.ui.downloads.AddTorrentFlow
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsScreen
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsViewModel
+import io.github.ashxtrem.hashlark.ui.library.LibraryTabs
 import io.github.ashxtrem.hashlark.ui.lan.SendToDeviceSheet
 import io.github.ashxtrem.hashlark.ui.common.CenteredMessage
 import io.github.ashxtrem.hashlark.ui.common.DetailChrome
@@ -86,6 +91,7 @@ class Screens(
     val settings: SettingsViewModel,
     /** LAN sharing; `null` in tests that render the UI without the app's process state. */
     val lan: LanController? = null,
+    val downloads: DownloadsViewModel = DownloadsViewModel(app),
 )
 
 /**
@@ -136,7 +142,7 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
                     screens.repos.requestAdd(event.url)
                 }
                 is AppEvent.ImportDefinition -> Unit // shown by the activity through pendingDefinition
-                is AppEvent.AddTorrent -> app.addTorrent(event.source)
+                is AppEvent.AddTorrent -> app.requestAdd(event.source)
             }
         }
     }
@@ -148,6 +154,12 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     }
 
     BackHandler(enabled = destination != Destination.Search) { destination = Destination.Search }
+
+    // The "In downloads" badges on results follow the client whenever a list of results is opened.
+    val clientOn = settings?.torrents?.enabled == true
+    LaunchedEffect(destination, clientOn) {
+        if (clientOn && (destination == Destination.Search || destination == Destination.Favorites)) app.refreshTorrentIds()
+    }
 
     val imeVisible = WindowInsets.isImeVisible
     val chrome = remember { DetailChrome() }
@@ -200,7 +212,7 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
                     color = nav.indicator,
                     modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 16.dp),
                 )
-                Destination.entries.forEach { item ->
+                Destination.shownIn(NavKind.Drawer).forEach { item ->
                     NavigationDrawerItem(
                         label = { Text(item.label) },
                         selected = item == destination,
@@ -229,9 +241,11 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
                 navigationRailContentColor = nav.content,
             ),
             navigationSuiteItems = {
-                Destination.entries.forEach { item ->
+                // A bottom bar has five items: History is a tab of Favourites there.
+                val highlighted = Destination.highlighted(destination, shape.navigation)
+                Destination.shownIn(shape.navigation).forEach { item ->
                     item(
-                        selected = item == destination,
+                        selected = item == highlighted,
                         onClick = { destination = item },
                         // Without labels the icon carries the destination name for screen readers.
                         icon = { Icon(item.icon, contentDescription = if (labelsAlways) null else item.label) },
@@ -269,7 +283,7 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
                             settings == null -> LoadingBox(label = "Starting…")
                             else -> CompositionLocalProvider(LocalDetailChrome provides chrome) {
                                 saveable.SaveableStateProvider(destination.name) {
-                                    Screen(destination, shape, screens, actions, searchFocus)
+                                    Screen(destination, shape, screens, actions, searchFocus) { destination = it }
                                 }
                             }
                         }
@@ -290,6 +304,14 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     }
     actions.noHandlerMagnet?.let { magnet ->
         NoHandlerDialog(
+            onTurnOn = if (clientOn) {
+                null
+            } else {
+                {
+                    actions.noHandlerMagnet = null
+                    app.turnOnBuiltInClient(retry = AddSource.Magnet(magnet))
+                }
+            },
             onCopy = {
                 actions.copyText("Magnet link", magnet)
                 app.say("Magnet link copied")
@@ -306,6 +328,8 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
     if (sendTarget != null && lan != null) {
         SendToDeviceSheet(sendTarget, lan, say = { app.say(it) }, onDismiss = { actions.sendTarget = null })
     }
+    // The one-time notice, the Add sheet and the permission prompts of every add.
+    AddTorrentFlow(app)
     trustPreview?.let { TrustDialog(it, onTrust = screens.repos::confirmAdd, onDismiss = screens.repos::cancelAdd) }
     pendingDefinition?.let { pending ->
         AddProviderDialog(
@@ -327,14 +351,22 @@ private fun Screen(
     screens: Screens,
     actions: ResultActions,
     searchFocus: FocusRequester,
+    navigate: (Destination) -> Unit,
 ) {
     val modifier = Modifier.fillMaxSize()
+    // On a bottom-bar layout Favourites and History share one screen with a tab row.
+    val tabs: (@Composable (history: Boolean) -> Unit)? = if (Destination.libraryTabs(shape.navigation)) {
+        { history -> LibraryTabs(history) { navigate(if (it) Destination.History else Destination.Favorites) } }
+    } else {
+        null
+    }
     when (destination) {
         Destination.Search -> SearchScreen(shape, screens.app, screens.search, screens.library, actions, searchFocus, modifier)
-        Destination.Favorites -> FavoritesScreen(screens.app, screens.library, actions, modifier)
+        Destination.Downloads -> DownloadsScreen(screens.app, screens.downloads, modifier)
+        Destination.Favorites -> FavoritesScreen(screens.app, screens.library, actions, modifier, tabs = tabs?.let { { it(false) } })
         Destination.History -> HistoryScreen(screens.library, onRun = { query ->
             screens.app.post(AppEvent.RunSearch(query))
-        }, modifier = modifier)
+        }, modifier = modifier, tabs = tabs?.let { { it(true) } })
         Destination.Providers -> ProvidersScreen(screens.app, screens.providers, screens.repos, actions, modifier)
         Destination.Settings -> SettingsScreen(screens.app, screens.settings, modifier)
     }
@@ -380,11 +412,25 @@ private fun WelcomeDialog(onAccept: () -> Unit) {
 }
 
 @Composable
-private fun NoHandlerDialog(onCopy: () -> Unit, onShare: () -> Unit, onDismiss: () -> Unit) {
+private fun NoHandlerDialog(onTurnOn: (() -> Unit)?, onCopy: () -> Unit, onShare: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("No torrent client found") },
-        text = { Text("No app on this device opens magnet links. Install a torrent client, or copy or share the link to use it elsewhere.") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (onTurnOn != null) {
+                        "No app on this device opens magnet links. Hashlark can download it with its built-in client, " +
+                            "or you can copy or share the link to use it elsewhere."
+                    } else {
+                        "No app on this device opens magnet links. Install a torrent client, or copy or share the link to use it elsewhere."
+                    },
+                )
+                if (onTurnOn != null) {
+                    Button(onClick = onTurnOn, modifier = Modifier.fillMaxWidth()) { Text("Turn on the built-in client") }
+                }
+            }
+        },
         confirmButton = { TextButton(onClick = onCopy) { Text("Copy magnet") } },
         dismissButton = {
             Row {

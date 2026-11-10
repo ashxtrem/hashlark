@@ -30,7 +30,7 @@ enum class Posture {
     Book,
 }
 
-/** How the five destinations are reached. */
+/** How the destinations are reached (a bar shows five, a rail or drawer all six; see [Destination.shownIn]). */
 enum class NavKind {
     /** No navigation of its own (tabletop posture: the halves of the screen are used for content). */
     None,
