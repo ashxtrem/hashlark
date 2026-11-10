@@ -1,12 +1,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <script lang="ts">
-  import { ArrowDown, ArrowUp, Copy, Download, FileDown, Star } from '@lucide/svelte';
+  import { ArrowDown, ArrowUp, Copy, Download, ExternalLink, FileDown, Star } from '@lucide/svelte';
   import type { MergedResult, SortOrder } from '$lib/api/client';
-  import { copyMagnet, download, linkKinds, saveTorrent } from '$lib/actions';
+  import { copyMagnet, download, inDownloads, linkKinds, openInClient, saveTorrent } from '$lib/actions';
   import { age, bytes, CATEGORY_LABELS, count, dateTime } from '$lib/format';
   import { sortResults } from '$lib/sort';
   import { favorites } from '$lib/state/favorites.svelte';
   import { search } from '$lib/state/search.svelte';
+  import { torrents } from '$lib/state/torrents.svelte';
   import { ui } from '$lib/state/ui.svelte';
 
   interface Props {
@@ -38,7 +39,7 @@
 
 <div class="card overflow-hidden">
   <div
-    class="grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_4.5rem_3.5rem_9.5rem] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-xs font-medium tracking-wide text-muted uppercase"
+    class="grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_4.5rem_3.5rem_11.5rem] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-xs font-medium tracking-wide text-muted uppercase"
     role="row"
   >
     {#each COLUMNS as col (col.order)}
@@ -71,7 +72,7 @@
            screen-reader users use the title button. -->
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
       <li
-        class="group grid cursor-pointer grid-cols-[minmax(0,1fr)_6rem_4.5rem_4.5rem_3.5rem_9.5rem] items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0 hover:bg-surface-2 focus-within:bg-surface-2"
+        class="group grid cursor-pointer grid-cols-[minmax(0,1fr)_6rem_4.5rem_4.5rem_3.5rem_11.5rem] items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0 hover:bg-surface-2 focus-within:bg-surface-2"
         onclick={() => (ui.details = result)}
       >
         <div class="min-w-0">
@@ -90,6 +91,9 @@
             {#each result.sources as source, i (source)}
               <span>{names[source] ?? source}</span>{#if i < result.sources.length - 1}<span>,</span>{/if}
             {/each}
+            {#if inDownloads(result)}
+              <span class="ml-1 rounded-full bg-accent-soft px-2 py-px font-medium text-accent">In downloads</span>
+            {/if}
           </p>
         </div>
         <span class="text-right text-sm tabular-nums">{bytes(p.size_bytes)}</span>
@@ -99,17 +103,42 @@
         <span class="text-right text-sm text-muted tabular-nums">{count(result.leechers)}</span>
         <span class="text-right text-sm text-muted" title={dateTime(p.published)}>{age(p.published)}</span>
         <div class="flex justify-end gap-0.5">
-          <button
-            class="icon-btn text-accent hover:text-accent"
-            title="Open in torrent client"
-            aria-label="Open {p.title} in torrent client"
-            onclick={(e) => {
-              e.stopPropagation();
-              download(result);
-            }}
-          >
-            <Download size={17} />
-          </button>
+          {#if torrents.enabled}
+            <button
+              class="icon-btn text-accent hover:text-accent"
+              title="Download (Shift+click to choose files and folder)"
+              aria-label="Download {p.title}"
+              onclick={(e) => {
+                e.stopPropagation();
+                download(result, { dialog: e.shiftKey });
+              }}
+            >
+              <Download size={17} />
+            </button>
+            <button
+              class="icon-btn"
+              title="Open in torrent client"
+              aria-label="Open {p.title} in torrent client"
+              onclick={(e) => {
+                e.stopPropagation();
+                openInClient(result);
+              }}
+            >
+              <ExternalLink size={16} />
+            </button>
+          {:else}
+            <button
+              class="icon-btn text-accent hover:text-accent"
+              title="Open in torrent client"
+              aria-label="Open {p.title} in torrent client"
+              onclick={(e) => {
+                e.stopPropagation();
+                download(result);
+              }}
+            >
+              <Download size={17} />
+            </button>
+          {/if}
           <button
             class="icon-btn"
             title="Copy magnet link"

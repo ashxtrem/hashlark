@@ -14,6 +14,7 @@ import {
   isTauri,
   onClosedToTray,
   onTorrentOpen,
+  readTorrentFile,
   whenDoneApi,
   type TorrentOpen,
   type WhenDoneAction,
@@ -54,6 +55,8 @@ export interface AddOptions {
   dialog?: boolean;
   title?: string | null;
   files?: FileEntry[] | null;
+  /** The caller shows its own "added" toast. */
+  quiet?: boolean;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -178,8 +181,25 @@ class TorrentsState {
       else ui.noHandlerMagnet = open.magnet;
       return;
     }
-    // The UI can't read files by path; drop or pick them instead.
-    toasts.error(`Can't open ${open.path} here yet. Drag the file onto the window or use Add.`);
+    // A `.torrent` from the command line or a file association.
+    const name = open.path.split(/[\\/]/).pop() ?? open.path;
+    if (!open.client_on) {
+      toasts.error(`Turn on the built-in client in Settings to open ${name}.`);
+      return;
+    }
+    try {
+      await this.addBytes(await readTorrentFile(open.path), name);
+    } catch (e) {
+      toasts.error(`Could not open ${name}: ${errorMessage(e)}`);
+    }
+  }
+
+  private async addBytes(data: Uint8Array, fileName: string, dialog = false): Promise<void> {
+    const info = readTorrent(data);
+    await this.add(
+      { source: { torrent: toBase64(data) } },
+      { dialog, title: info?.name ?? fileName.replace(/\.torrent$/i, ''), files: info?.files ?? null },
+    );
   }
 
   /** Reloads the list now instead of waiting for the next snapshot. */
@@ -244,7 +264,7 @@ class TorrentsState {
       const res = await app.client.addTorrent(final);
       if (!res.already && !this.byHash.has(res.torrent.id)) this.list = [...this.list, res.torrent];
       if (res.already) toasts.show(`Already in Downloads: ${res.torrent.name}`);
-      else toasts.success(`Added ${res.torrent.name}`);
+      else if (!opts.quiet) toasts.success(`Added ${res.torrent.name}`);
       return res;
     } catch (e) {
       toasts.error(`Could not add the torrent: ${errorMessage(e)}`);
@@ -268,12 +288,7 @@ class TorrentsState {
         toasts.error(problem);
         continue;
       }
-      const data = new Uint8Array(await file.arrayBuffer());
-      const info = readTorrent(data);
-      await this.add(
-        { source: { torrent: toBase64(data) } },
-        { dialog, title: info?.name ?? file.name.replace(/\.torrent$/i, ''), files: info?.files ?? null },
-      );
+      await this.addBytes(new Uint8Array(await file.arrayBuffer()), file.name, dialog);
     }
   }
 

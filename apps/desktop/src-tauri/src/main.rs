@@ -146,6 +146,7 @@ fn main() {
             commands::magnet_handler_status,
             commands::magnet_handler_register,
             open::take_torrent_opens,
+            open::read_torrent_file,
             power::set_when_done,
             power::when_done,
             power::cancel_when_done,

@@ -95,6 +95,11 @@ export async function onTorrentOpen(handler: (open: TorrentOpen) => void): Promi
   return unlisten;
 }
 
+/** Reads a `.torrent` file the OS opened with Hashlark (desktop only; at most 10 MiB). */
+export async function readTorrentFile(path: string): Promise<Uint8Array> {
+  return new Uint8Array(await invoke<ArrayBuffer>('read_torrent_file', { path }));
+}
+
 // ----- When all done (desktop only) -------------------------------------------
 
 export type WhenDoneAction = 'nothing' | 'quit' | 'sleep' | 'hibernate' | 'shutdown';
