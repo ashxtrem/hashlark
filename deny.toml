@@ -38,6 +38,11 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
     { id = "RUSTSEC-2026-0371", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
     { id = "RUSTSEC-2026-0372", reason = "Linux D-Bus stack via keyring and Tauri plugins; no zbus 6 release of them yet" },
+    # ringbuf 0.4 `Consumer::skip`/`clear` double-drop when an element's
+    # `Drop` panics. It reaches us via librqbit-utp 0.7 (librqbit's uTP),
+    # which pins ringbuf 0.4 and only stores `u8` in it (`SharedRb<Heap<u8>>`),
+    # whose drop cannot panic. Drop this once librqbit-utp moves to ringbuf 0.5.2+.
+    { id = "RUSTSEC-2026-0293", reason = "librqbit-utp stores only u8 in ringbuf; u8 drop cannot panic; no ringbuf 0.4 fix" },
 ]
 
 [licenses]

@@ -1,0 +1,31 @@
+[package]
+name = "hashlark-torrent"
+description = "Built-in BitTorrent client for Hashlark, on librqbit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[dependencies]
+hashlark-core = { version = "0.1.2", path = "../hashlark-core", default-features = false }
+# rustls only: no OpenSSL / native-tls, no HTTP API or web UI.
+librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "sync", "fs"] }
+tracing = "0.1.44"
+utoipa = { version = "6.0.0", optional = true }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "test-util"] }
+
+[features]
+# Derive OpenAPI schemas for the HTTP API.
+openapi = ["dep:utoipa", "hashlark-core/openapi"]
+
+[lints]
+workspace = true
