@@ -412,6 +412,9 @@ export class Api {
       if (signal?.aborted) return;
       throw e;
     } finally {
+      // Breaking out of the loop must close the connection, not just
+      // release the reader.
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   }

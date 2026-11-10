@@ -34,6 +34,22 @@ describe('torrentEvents', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
   });
 
+  it('closes the stream when the consumer stops early', async () => {
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: completed\ndata: {"type":"completed","id":"a","name":"x"}\n\n'));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body)));
+    for await (const _ of new Api(endpoint).torrentEvents()) break;
+    expect(cancelled).toBe(true);
+  });
+
   it('turns an error response into an ApiError', async () => {
     vi.stubGlobal(
       'fetch',
