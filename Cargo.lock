@@ -3442,7 +3442,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hashlark-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -3458,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arti-client",
  "async-trait",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-desktop"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "hashlark-core",
@@ -3507,6 +3507,7 @@ dependencies = [
  "hashlark-server",
  "hashlark-torrent",
  "keepawake",
+ "rustls",
  "serde",
  "serde_json",
  "starship-battery",
@@ -3530,7 +3531,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-ffi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hashlark-core",
  "hashlark-lan",
@@ -3548,7 +3549,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-lan"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "chacha20poly1305",
@@ -3573,7 +3574,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3609,7 +3610,7 @@ dependencies = [
 
 [[package]]
 name = "hashlark-torrent"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -10462,7 +10463,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "uniffi",
 ]

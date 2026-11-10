@@ -4,6 +4,12 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-10
+
+### Fixed
+
+- The desktop app no longer closes right after it starts. Two TLS crypto backends were built in, so rustls could not choose one and stopped the app at its first secure connection. The app now picks one at startup. The server, command line and Android app were not affected.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added
