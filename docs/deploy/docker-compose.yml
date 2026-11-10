@@ -8,8 +8,13 @@ services:
     restart: unless-stopped
     ports:
       - "8787:8787"
+      # Built-in torrent client: incoming peers.
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
     volumes:
       - hashlark-data:/data
+      # Downloads; set [torrents] download_dir = "/downloads" in hashlark.toml to use it.
+      - ./downloads:/downloads
       # Optional: a config file (see hashlark.example.toml).
       # - ./hashlark.toml:/data/hashlark.toml:ro
     environment:

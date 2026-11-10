@@ -42,7 +42,7 @@ Torrent traffic connects directly. It never goes through Tor or the search proxy
 ### Adding a torrent
 
 - **Download** on a search result starts it at once, in your download folder, with every file.
-- **Shift+click** Download opens the Add dialog for that one torrent, where you choose the files and the folder. On Android, long-press a result to do the same.
+- **Shift+click** Download opens the Add dialog for that one torrent, where you choose the files and the folder. On Android, long-press **Download** on a result's details, or pick **Download with options…** from a result's menu; there you choose the folder and whether to start paused, and you pick files later in the torrent's details.
 - To see the Add dialog for every torrent, turn on **Ask where to save each torrent** in Settings.
 - On the **Downloads** page in the sidebar, paste a magnet link and click **Add**. Or click **Open .torrent** and pick one or more `.torrent` files. You can also drop a `.torrent` file onto the window.
 - Magnet links from your browser or other apps open in Hashlark when it is the magnet handler (see [Opening magnet links](#opening-magnet-links-with-hashlark)). Hashlark also adds `.torrent` files that you open with it.
@@ -129,7 +129,7 @@ The built-in client doesn't do these yet:
 
 - **Streaming:** you can't watch a video while it downloads.
 - **RSS:** there are no automatic downloads from feeds.
-- **Categories and tags:** there are only the status filters and the name filter.
+- **Categories and tags:** there are only the status filters, plus a name filter on desktop and in the web UI.
 - **Moving storage:** you can't move a torrent's files after adding it.
 - **Per-file priorities:** you can select or skip files, but you can't set how important each file is.
 - **Protocol encryption (MSE/PE):** not supported. Some internet providers slow down unencrypted torrent traffic, and some private trackers require encryption. For those, use another client.
