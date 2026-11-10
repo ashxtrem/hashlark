@@ -179,21 +179,28 @@ impl TorrentService {
         let totals: Vec<(String, u64, u64)> = {
             let mut st = run.state.lock().expect("lock");
             st.last_flush = Some(Instant::now());
-            let State { rows, counters, .. } = &mut *st;
-            counters
+            st.counters
                 .iter()
                 .filter_map(|(hash, c)| {
-                    let row = rows.get_mut(hash)?;
+                    let row = st.rows.get(hash)?;
                     if row.downloaded_total == c.down && row.uploaded_total == c.up {
                         return None;
                     }
-                    row.downloaded_total = c.down;
-                    row.uploaded_total = c.up;
                     Some((hash.clone(), c.down, c.up))
                 })
                 .collect()
         };
-        store::set_totals(self.inner.engine.store(), &totals).await
+        store::set_totals(self.inner.engine.store(), &totals).await?;
+        // The rows follow the store only once it has the values, so a
+        // failed write is retried at the next flush.
+        let mut st = run.state.lock().expect("lock");
+        for (hash, down, up) in totals {
+            if let Some(row) = st.rows.get_mut(&hash) {
+                row.downloaded_total = down;
+                row.uploaded_total = up;
+            }
+        }
+        Ok(())
     }
 }
 

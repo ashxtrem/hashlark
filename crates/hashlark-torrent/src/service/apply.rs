@@ -69,11 +69,26 @@ impl TorrentService {
                 let handle = handles.get(&row.info_hash);
                 let stats = handle.map(|h| h.stats());
                 let counter = st.counters.get(&row.info_hash).copied().unwrap_or_default();
+                // Until librqbit has checked the data (Live / Paused), its
+                // `finished` is false; a torrent that completed before
+                // counts as complete meanwhile, so it isn't queued as a
+                // download.
+                let checked = handle.is_some_and(|h| {
+                    h.with_state(|s| {
+                        matches!(
+                            s,
+                            ManagedTorrentState::Live(_) | ManagedTorrentState::Paused(_)
+                        )
+                    })
+                });
+                let finished = stats.as_ref().is_some_and(|s| s.finished)
+                    || (!checked && row.completed_at.is_some());
                 TorrentFacts {
                     id: row.info_hash.clone(),
                     run_mode: row.run_mode,
                     queue_pos: row.queue_pos,
-                    finished: stats.as_ref().is_some_and(|s| s.finished),
+                    finished,
+                    running: handle.is_some_and(|h| is_active(h)),
                     uploaded_total: counter.up,
                     downloaded_total: counter.down,
                     size: stats.as_ref().map_or(0, |s| s.total_bytes),
@@ -118,6 +133,9 @@ impl TorrentService {
         hash: &str,
         handle: &Arc<ManagedTorrent>,
     ) -> Result<()> {
+        // Captured right before the pause: once paused, librqbit drops the
+        // live state and its counters can't be read. Only what moves during
+        // the pause call itself is lost.
         self.capture(run, hash, handle);
         let result = run.session.pause(handle).await;
         if let Some(c) = run.state.lock().expect("lock").counters.get_mut(hash) {
@@ -162,32 +180,43 @@ impl TorrentService {
         let hash = hash.to_owned();
         tokio::spawn(async move {
             let result = tokio::select! {
-                () = token.cancelled() => return,
-                r = run.session.add_torrent(AddTorrent::from_url(magnet), Some(opts)) => r,
+                () = token.cancelled() => None,
+                r = run.session.add_torrent(AddTorrent::from_url(magnet), Some(opts)) => {
+                    Some(r.map(|_| ()).map_err(|e| format!("{e:#}")))
+                }
             };
-            svc.fetch_done(
-                &run,
-                &hash,
-                &token,
-                result.map(|_| ()).map_err(|e| format!("{e:#}")),
-            )
-            .await;
+            svc.fetch_done(&run, &hash, &token, result).await;
         });
     }
 
+    /// Ends a metadata fetch; `None` when it was cancelled before the add
+    /// returned.
     async fn fetch_done(
         &self,
         run: &Arc<Running>,
         hash: &str,
         token: &CancellationToken,
-        result: std::result::Result<(), String>,
+        result: Option<std::result::Result<(), String>>,
     ) {
         let _op = run.op_lock.lock().await;
-        if token.is_cancelled() {
-            // Paused, removed or stopped meanwhile; a handle that made it
-            // into the session is handled like any other.
-            return;
-        }
+        let result = match result {
+            Some(result) if !token.is_cancelled() => result,
+            _ => {
+                // Paused, removed or stopped meanwhile. A paused torrent's
+                // handle is handled like any other; a removed one's add may
+                // have reached the session after `remove` looked, so it is
+                // deleted here (the task runs without `op_lock`).
+                let removed = !run.state.lock().expect("lock").rows.contains_key(hash);
+                if removed
+                    && !run.cancel.is_cancelled()
+                    && let Ok(key) = torrent_key(hash)
+                    && run.session.get(key).is_some()
+                {
+                    let _ = run.session.delete(key, false).await;
+                }
+                return;
+            }
+        };
         let known = {
             let mut st = run.state.lock().expect("lock");
             st.pending.remove(hash);
@@ -244,7 +273,11 @@ impl TorrentService {
     /// reads them only at add. Keeps the fastresume bitfield, so nothing is
     /// re-checked. The caller holds `run.op_lock`; the next reconcile
     /// resumes it if it should run.
-    pub(crate) async fn readd(&self, run: &Arc<Running>, hash: &str) -> Result<()> {
+    ///
+    /// When the add fails, the torrent is added back with `previous`'s
+    /// options; when that fails too, it is marked with an error so it
+    /// doesn't silently vanish.
+    pub(crate) async fn readd(&self, run: &Arc<Running>, hash: &str, previous: &Row) -> Result<()> {
         let key = torrent_key(hash)?;
         let Some(handle) = run.session.get(key) else {
             // Not added yet: the fetch uses the new options.
@@ -288,13 +321,34 @@ impl TorrentService {
         let peers = std::fs::read_to_string(self.inner.opts.magnet_file(hash))
             .map(|m| magnet_peers(&m))
             .unwrap_or_default();
-        let mut opts = self.add_options(run, &row, peers, running.max(1), true);
-        opts.output_folder = Some(output_folder.to_string_lossy().into_owned());
-        opts.only_files = only_files;
-        run.session
-            .add_torrent(AddTorrent::from_bytes(bytes), Some(opts))
+        let options = |row: &Row| {
+            let mut opts = self.add_options(run, row, peers.clone(), running.max(1), true);
+            opts.output_folder = Some(output_folder.to_string_lossy().into_owned());
+            opts.only_files.clone_from(&only_files);
+            opts
+        };
+        let err = match run
+            .session
+            .add_torrent(AddTorrent::from_bytes(bytes.clone()), Some(options(&row)))
             .await
-            .map_err(|e| invalid("could not apply the limits", e))?;
-        Ok(())
+        {
+            Ok(_) => return Ok(()),
+            Err(e) => invalid("could not apply the limits", e),
+        };
+        tracing::warn!(%hash, error = %err, "re-adding with the previous limits");
+        if let Err(e) = run
+            .session
+            .add_torrent(AddTorrent::from_bytes(bytes), Some(options(previous)))
+            .await
+        {
+            let message = format!("could not add the torrent back: {e:#}");
+            tracing::warn!(%hash, %message, "torrent lost from the session");
+            run.state
+                .lock()
+                .expect("lock")
+                .errors
+                .insert(hash.to_owned(), message);
+        }
+        Err(err)
     }
 }

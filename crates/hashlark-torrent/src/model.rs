@@ -309,6 +309,8 @@ pub enum BulkAction {
     Start,
     ForceStart,
     Remove {
+        /// Also delete the downloaded files. Ignored for torrents created
+        /// here: their files are the user's own sources.
         #[serde(default)]
         delete_files: bool,
     },

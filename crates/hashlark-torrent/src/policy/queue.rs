@@ -8,6 +8,10 @@ use hashlark_core::settings::TorrentSettings;
 use super::{Desired, PlanCtx, TorrentFacts, hold, seeding};
 use crate::model::RunMode;
 
+/// How much lower a queued seed's ratio must be to take a running seed's
+/// slot.
+const SEED_SWAP_MARGIN: f64 = 0.05;
+
 /// Decides what every torrent should do. The result has one entry per fact,
 /// in the same order.
 ///
@@ -22,8 +26,9 @@ use crate::model::RunMode;
 ///   `queue_pos` order, up to `max_active_downloads` minus the paused
 ///   incomplete ones.
 /// - Complete `auto` torrents under their seed limit seed, up to
-///   `max_active_seeds` minus the paused complete ones, lowest ratio first.
-///   Those at their limit are `Done`.
+///   `max_active_seeds` minus the paused complete ones, lowest ratio first;
+///   a running seed keeps its slot unless a queued one's ratio is lower by
+///   more than `SEED_SWAP_MARGIN`. Those at their limit are `Done`.
 /// - A forced torrent keeps running past its seed limit.
 /// - A torrent with an error takes no slot.
 pub(crate) fn plan(
@@ -74,8 +79,18 @@ pub(crate) fn plan(
         };
     }
 
-    // Lowest ratio first; the stable sort keeps queue order among equals.
-    seeds.sort_by(|&a, &b| seeding::ratio(&facts[a]).total_cmp(&seeding::ratio(&facts[b])));
+    // Lowest ratio first, with running seeds ahead by `SEED_SWAP_MARGIN` so
+    // two close ratios don't swap slots every tick; the stable sort keeps
+    // queue order among equals.
+    let key = |i: usize| {
+        let ratio = seeding::ratio(&facts[i]);
+        if facts[i].running {
+            ratio - SEED_SWAP_MARGIN
+        } else {
+            ratio
+        }
+    };
+    seeds.sort_by(|&a, &b| key(a).total_cmp(&key(b)));
     let seed_slots = usize::from(cfg.max_active_seeds).saturating_sub(paused_seeds);
     for (n, &i) in seeds.iter().enumerate() {
         want[i] = if n < seed_slots {
@@ -116,6 +131,7 @@ mod tests {
             seeding_since: None,
             seed: SeedLimits::default(),
             error: false,
+            running: false,
         }
     }
 
@@ -226,6 +242,21 @@ mod tests {
         // Equal ratios keep queue order.
         let facts = [seed("a", 1, 100), seed("b", 0, 100)];
         assert_eq!(run(&facts, &cfg(1, 1)), [QueuedSeed, Run]);
+    }
+
+    #[test]
+    fn a_running_seed_keeps_its_slot_within_the_margin() {
+        // Ratios 1.00 (running) and 0.97 (queued): within the margin.
+        let mut a = seed("a", 0, 100);
+        a.running = true;
+        let b = seed("b", 1, 97);
+        assert_eq!(run(&[a.clone(), b], &cfg(1, 1)), [Run, QueuedSeed]);
+        // Next tick, nothing moved: still no swap.
+        let b = seed("b", 1, 97);
+        assert_eq!(run(&[a.clone(), b], &cfg(1, 1)), [Run, QueuedSeed]);
+        // 0.90 is lower by more than the margin: it takes the slot.
+        let b = seed("b", 1, 90);
+        assert_eq!(run(&[a, b], &cfg(1, 1)), [QueuedSeed, Run]);
     }
 
     #[test]

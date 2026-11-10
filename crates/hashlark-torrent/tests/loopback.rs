@@ -1086,4 +1086,82 @@ mod service {
         b.svc.stop().await;
         a.svc.stop().await;
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn remove_keeps_the_sources_of_created_torrents() {
+        let a = node(Vec::new()).await;
+        let (id, _, data) = seed(&a, "mine.bin", 7).await;
+        a.svc.remove(&id, true).await.unwrap();
+        assert!(a.svc.list().await.unwrap().is_empty());
+        let source = a.dir.path().join("share").join("mine.bin");
+        assert_eq!(std::fs::read(source).unwrap(), data);
+        a.svc.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn turtle_works_while_the_client_is_off() {
+        let a = node(Vec::new()).await;
+        a.svc.stop().await;
+        assert!(!a.svc.is_running());
+        a.svc
+            .bulk(BulkRequest {
+                ids: None,
+                action: BulkAction::Turtle(true),
+            })
+            .await
+            .unwrap();
+        assert!(a.engine.settings().torrents.turtle);
+        assert!(!a.svc.is_running());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn start_refuses_a_download_dir_outside_the_roots() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("data");
+        let engine = Engine::with_store(
+            AppPaths::at(&data),
+            Store::open_in_memory().await.unwrap(),
+            EngineOptions {
+                secrets: Arc::new(MemorySecretStore::default()),
+                builtins: Vec::new(),
+                definitions: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+        let mut settings = engine.settings();
+        settings.torrents.dht = false;
+        settings.torrents.lsd = false;
+        settings.torrents.upnp = false;
+        engine.set_settings(settings).await.unwrap();
+        let media = dir.path().join("media");
+        std::fs::create_dir_all(&media).unwrap();
+        let outside = dir.path().join("downloads");
+        let mut opts = ServiceOptions::new(&data, &outside);
+        opts.path_policy = hashlark_torrent::PathPolicy::Roots(vec![media.clone()]);
+        opts.listen_ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        opts.listen_port_override = Some(0);
+        let svc = TorrentService::new(engine.clone(), opts);
+
+        // The default folder is outside the roots.
+        assert!(matches!(svc.start().await, Err(Error::Invalid(_))));
+        assert!(!svc.is_running());
+        assert!(!outside.exists());
+
+        // So is a configured one; nothing is created there either.
+        let elsewhere = dir.path().join("elsewhere");
+        let mut settings = engine.settings();
+        settings.torrents.download_dir = Some(elsewhere.clone());
+        engine.set_settings(settings).await.unwrap();
+        assert!(matches!(svc.start().await, Err(Error::Invalid(_))));
+        assert!(!elsewhere.exists());
+
+        // One inside a root starts.
+        let mut settings = engine.settings();
+        settings.torrents.download_dir = Some(media.join("torrents"));
+        engine.set_settings(settings).await.unwrap();
+        svc.start().await.unwrap();
+        assert!(svc.is_running());
+        svc.stop().await;
+    }
 }

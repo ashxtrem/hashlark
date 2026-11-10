@@ -341,6 +341,19 @@ impl TorrentService {
             return Ok(());
         }
         let opts = &self.inner.opts;
+        // The configured folder (or the default) must pass the path policy
+        // before anything is created: `PUT /settings` could name any path.
+        let download_dir = t
+            .download_dir
+            .clone()
+            .unwrap_or_else(|| opts.default_download_dir.clone());
+        let download_dir = opts.path_policy.check(&download_dir).inspect_err(|e| {
+            tracing::warn!(
+                dir = %download_dir.display(),
+                error = %e,
+                "torrent download folder is not allowed; the client stays off"
+            );
+        })?;
         let port = match opts.listen_port_override {
             Some(port) => port,
             None if t.listen_port != 0 => t.listen_port,
@@ -353,10 +366,6 @@ impl TorrentService {
                 port
             }
         };
-        let download_dir = t
-            .download_dir
-            .clone()
-            .unwrap_or_else(|| opts.default_download_dir.clone());
         std::fs::create_dir_all(&download_dir)?;
         let persistence = opts.persistence_dir();
         std::fs::create_dir_all(&persistence)?;
@@ -504,7 +513,7 @@ impl TorrentService {
                 st.counters.insert(hash.clone(), Counter::from_row(row));
                 if handles.contains_key(hash) {
                     if row.has_add_options() {
-                        readd.push(hash.clone());
+                        readd.push((hash.clone(), row.clone()));
                     }
                 } else if !self.inner.opts.magnet_file(hash).exists() {
                     st.errors.insert(
@@ -517,8 +526,15 @@ impl TorrentService {
             st.last_flush = Some(Instant::now());
         }
         let _op = run.op_lock.lock().await;
-        for hash in readd {
-            if let Err(e) = self.readd(run, &hash).await {
+        for (hash, row) in readd {
+            // librqbit restored it with the session defaults.
+            let previous = Row {
+                peer_limit: None,
+                down_kib: None,
+                up_kib: None,
+                ..row
+            };
+            if let Err(e) = self.readd(run, &hash, &previous).await {
                 tracing::warn!(%hash, error = %e, "could not apply torrent limits");
             }
         }

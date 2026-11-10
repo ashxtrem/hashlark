@@ -33,7 +33,8 @@ pub const ADD_BODY_LIMIT: usize = 14 * 1024 * 1024;
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct RemoveParams {
-    /// Also delete the downloaded files (default false).
+    /// Also delete the downloaded files (default false). Ignored for
+    /// torrents created here: their files are the user's own sources.
     #[serde(default)]
     pub delete_files: bool,
 }
@@ -178,7 +179,8 @@ pub async fn update_torrent(
     Ok(Json(state.torrents.update(&id, patch).await?))
 }
 
-/// Removes a torrent, and its files with `delete_files=true`.
+/// Removes a torrent, and its files with `delete_files=true` (never the
+/// source files of a torrent created here).
 #[utoipa::path(
     delete, path = "/torrents/{id}", tag = "torrents",
     params(

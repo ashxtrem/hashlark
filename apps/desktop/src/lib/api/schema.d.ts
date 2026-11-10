@@ -543,7 +543,10 @@ export interface paths {
         get: operations["get_torrent"];
         put?: never;
         post?: never;
-        /** Removes a torrent, and its files with `delete_files=true`. */
+        /**
+         * Removes a torrent, and its files with `delete_files=true` (never the
+         *     source files of a torrent created here).
+         */
         delete: operations["remove_torrent"];
         options?: never;
         head?: never;
@@ -687,6 +690,10 @@ export interface components {
         /** @description An action on many torrents. */
         BulkAction: "pause" | "resume" | "stop" | "start" | "force_start" | {
             remove: {
+                /**
+                 * @description Also delete the downloaded files. Ignored for torrents created
+                 *     here: their files are the user's own sources.
+                 */
                 delete_files?: boolean;
             };
         } | {
@@ -1713,7 +1720,7 @@ export interface components {
          * @description What a torrent is doing now.
          * @enum {string}
          */
-        TorrentState: "metadata" | "checking" | "downloading" | "seeding" | "queued" | "paused" | "stopped" | "finished" | "error";
+        TorrentState: "metadata" | "checking" | "downloading" | "seeding" | "queued" | "paused" | "stopped" | "finished" | "done" | "scheduled_off" | "scheduled_seed_only" | "on_battery" | "waiting_for_network" | "error";
         /** @description One row of the torrent list. */
         TorrentSummary: {
             /** Format: int64 */
@@ -3003,7 +3010,10 @@ export interface operations {
     remove_torrent: {
         parameters: {
             query?: {
-                /** @description Also delete the downloaded files (default false). */
+                /**
+                 * @description Also delete the downloaded files (default false). Ignored for
+                 *     torrents created here: their files are the user's own sources.
+                 */
                 delete_files?: boolean;
             };
             header?: never;

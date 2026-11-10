@@ -12,7 +12,7 @@ use hashlark_core::{Error, Result};
 use librqbit::ManagedTorrentState;
 
 use crate::model::{
-    BulkAction, BulkFailure, BulkRequest, BulkResult, QueueMove, QueueStep, TorrentDetails,
+    BulkAction, BulkFailure, BulkRequest, BulkResult, Origin, QueueMove, QueueStep, TorrentDetails,
     TorrentPatch,
 };
 use crate::service::{Running, TorrentService, invalid, torrent_key};
@@ -93,6 +93,7 @@ impl TorrentService {
                 .await
                 .map_err(|e| invalid("could not change the selected files", e))?;
         }
+        let previous = row.clone();
         let mut readd = false;
         if let Some(limits) = patch.limits {
             readd |= row.down_kib != limits.down_kib || row.up_kib != limits.up_kib;
@@ -126,8 +127,22 @@ impl TorrentService {
         if let Some(mv) = patch.queue_pos {
             self.move_in_queue(&run, &id, mv).await?;
         }
-        if readd {
-            self.readd(&run, &id).await?;
+        if readd && let Err(e) = self.readd(&run, &id, &previous).await {
+            // The torrent keeps (or is back on) its old limits; so does the
+            // row.
+            let row = {
+                let mut st = run.state.lock().expect("lock");
+                st.rows.get_mut(&id).map(|row| {
+                    row.down_kib = previous.down_kib;
+                    row.up_kib = previous.up_kib;
+                    row.peer_limit = previous.peer_limit;
+                    row.clone()
+                })
+            };
+            if let Some(row) = row {
+                store::update(self.engine().store(), &row).await?;
+            }
+            return Err(e);
         }
         if retry
             && let Some(handle) = run.session.get(key)
@@ -166,21 +181,26 @@ impl TorrentService {
     }
 
     /// Removes a torrent and its stored state; with `delete_files`, also
-    /// its downloaded files.
+    /// its downloaded files. `delete_files` is ignored for torrents created
+    /// here ([`Origin::Created`]): their files are the user's own sources.
     pub async fn remove(&self, id: &str, delete_files: bool) -> Result<()> {
         let id = id.to_ascii_lowercase();
         let run = self.require()?;
         let key = torrent_key(&id)?;
         let _op = run.op_lock.lock().await;
-        {
+        let delete_files = {
             let mut st = run.state.lock().expect("lock");
-            if !st.rows.contains_key(&id) {
+            let Some(row) = st.rows.get(&id) else {
                 return Err(Error::NotFound(format!("torrent `{id}`")));
-            }
+            };
+            let delete_files = delete_files && row.source != Origin::Created;
             if let Some(token) = st.pending.remove(&id) {
                 token.cancel();
             }
-        }
+            delete_files
+        };
+        // Checked after the cancel: a metadata fetch that already reached
+        // the session is deleted here, a later one by its own cleanup.
         if run.session.get(key).is_some() {
             run.session
                 .delete(key, delete_files)
@@ -204,15 +224,18 @@ impl TorrentService {
     }
 
     /// Applies one action to many torrents (all when `ids` is absent).
+    /// Turtle is a settings change, so it works while the client is off.
     pub async fn bulk(&self, req: BulkRequest) -> Result<BulkResult> {
-        let run = self.require()?;
         if let BulkAction::Turtle(on) = req.action {
             let mut settings = self.engine().settings();
             settings.torrents.turtle = on;
             let saved = self.engine().set_settings(settings).await?;
-            self.apply_settings(&saved).await?;
+            if self.is_running() {
+                self.apply_settings(&saved).await?;
+            }
             return Ok(BulkResult::default());
         }
+        let run = self.require()?;
         let ids = match req.ids {
             Some(ids) => ids,
             None => {
