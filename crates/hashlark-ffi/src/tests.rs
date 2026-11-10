@@ -384,3 +384,96 @@ async fn lan_pairs_and_sends_through_the_ffi() {
     phone.shutdown().await.unwrap();
     desk.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn the_torrent_client_starts_only_when_asked_and_lists_what_is_added() {
+    let (engine, dir) = engine().await;
+
+    // Before `start_torrents` saving settings leaves the client alone, even
+    // with it enabled in the settings.
+    let mut settings: Value = serde_json::from_str(&engine.settings().unwrap()).unwrap();
+    assert_eq!(settings["torrents"]["enabled"], true);
+    for key in ["dht", "lsd", "upnp", "utp"] {
+        settings["torrents"][key] = false.into();
+    }
+    engine
+        .clone()
+        .set_settings(settings.to_string())
+        .await
+        .unwrap();
+    let err = engine.clone().torrents().await.unwrap_err();
+    assert_eq!(code(&err), "invalid_request");
+    engine.clone().set_network_allowed(true).await.unwrap();
+    engine.clone().set_torrent_power(false).await.unwrap();
+
+    let downloads = dir.path().join("downloads");
+    engine
+        .clone()
+        .start_torrents(downloads.display().to_string())
+        .await
+        .unwrap();
+    // Starting again does nothing.
+    engine
+        .clone()
+        .start_torrents(downloads.display().to_string())
+        .await
+        .unwrap();
+    let stats: Value =
+        serde_json::from_str(&engine.clone().torrent_stats().await.unwrap()).unwrap();
+    assert_eq!(stats["running"], true);
+
+    let hash = "1dc689206d6f6ef6021d558d95350ed09004b40c";
+    let magnet = format!("magnet:?xt=urn:btih:{hash}&dn=Test");
+    let added: Value = serde_json::from_str(
+        &engine
+            .clone()
+            .add_torrent(serde_json::json!({ "source": { "magnet": magnet } }).to_string())
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(added["torrent"]["id"], hash);
+    assert_eq!(added["already"], false);
+
+    let list: Value = serde_json::from_str(&engine.clone().torrents().await.unwrap()).unwrap();
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["id"], hash);
+    let details: Value =
+        serde_json::from_str(&engine.clone().torrent(hash.into()).await.unwrap()).unwrap();
+    assert_eq!(details["id"], hash);
+
+    let paused = engine
+        .clone()
+        .torrent_bulk(r#"{"action":"pause"}"#.into())
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(&paused).unwrap()["ok"][0],
+        hash
+    );
+    let patched: Value = serde_json::from_str(
+        &engine
+            .clone()
+            .update_torrent(hash.into(), r#"{"action":"resume"}"#.into())
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(patched["run_mode"], "auto");
+
+    let bad = engine.clone().add_torrent("{".into()).await.unwrap_err();
+    assert_eq!(code(&bad), "invalid_request");
+
+    engine
+        .clone()
+        .remove_torrent(hash.into(), false)
+        .await
+        .unwrap();
+    let list: Value = serde_json::from_str(&engine.clone().torrents().await.unwrap()).unwrap();
+    assert!(list.as_array().unwrap().is_empty());
+}
+
+#[test]
+fn the_torrent_file_cap_is_exported() {
+    assert_eq!(max_torrent_bytes(), 10 * 1024 * 1024);
+}

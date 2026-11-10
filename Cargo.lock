@@ -3534,6 +3534,7 @@ version = "0.1.2"
 dependencies = [
  "hashlark-core",
  "hashlark-lan",
+ "hashlark-torrent",
  "serde",
  "serde_json",
  "tempfile",
