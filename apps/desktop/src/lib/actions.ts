@@ -2,15 +2,46 @@
 
 //! What happens when the user downloads, copies or opens a result.
 
+import { goto } from '$app/navigation';
 import type { MergedResult } from '$lib/api/client';
 import { copyText, isTauri, openMagnet, openTorrent } from '$lib/platform';
 import { app } from '$lib/state/app.svelte';
 import { errorMessage, toasts } from '$lib/state/toasts.svelte';
 import { providers } from '$lib/state/providers.svelte';
+import { torrents } from '$lib/state/torrents.svelte';
 import { ui } from '$lib/state/ui.svelte';
 
-/** Opens the result in the user's torrent client (ADR 0008). */
-export async function download(result: MergedResult): Promise<void> {
+/**
+ * The main action on a result. With the built-in client on, it adds the
+ * torrent there (`dialog`, from Shift+click, asks first); with it off, it
+ * hands the result to the user's own torrent client as before (ADR 0008).
+ */
+export async function download(result: MergedResult, opts: { dialog?: boolean } = {}): Promise<void> {
+  if (!torrents.enabled) {
+    await openInClient(result);
+    return;
+  }
+  try {
+    const res = await torrents.add(
+      { source: { result_id: result.id } },
+      { dialog: opts.dialog, title: result.primary.title, quiet: true },
+    );
+    if (res && !res.already) {
+      toasts.success('Added to Downloads', { label: 'Show', run: () => void goto('/downloads') });
+    }
+  } catch (e) {
+    toasts.error(`Could not add this result: ${errorMessage(e)}`);
+  }
+}
+
+/** The built-in client already has this result's torrent (for the "In downloads" badge). */
+export function inDownloads(result: MergedResult): boolean {
+  const hash = result.primary.info_hash;
+  return Boolean(hash) && torrents.byHash.has(hash!.toLowerCase());
+}
+
+/** Hands the result to the user's own torrent client (ADR 0008). */
+export async function openInClient(result: MergedResult): Promise<void> {
   try {
     const target = await app.client.resolve(result.id);
     if (target.type === 'magnet') {

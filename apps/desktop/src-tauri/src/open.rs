@@ -10,6 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use hashlark_core::engine::MAX_TORRENT_BYTES;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use url::Url;
@@ -133,9 +134,66 @@ pub fn take_torrent_opens(opens: State<'_, Opens>) -> Vec<TorrentOpen> {
     std::mem::take(&mut inner.pending)
 }
 
+/// Reads a `.torrent` file the OS opened with Hashlark, for the UI to add
+/// (it can't read files by path). Only paths ending in `.torrent`, at most
+/// [`MAX_TORRENT_BYTES`]. Returns the raw bytes.
+#[tauri::command]
+pub async fn read_torrent_file(path: String) -> Result<tauri::ipc::Response, String> {
+    let bytes = tokio::task::spawn_blocking(move || read_torrent(Path::new(&path)))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+fn read_torrent(path: &Path) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+
+    let is_torrent = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("torrent"));
+    if !is_torrent {
+        return Err("only .torrent files can be opened".into());
+    }
+    let file = std::fs::File::open(path).map_err(|e| format!("could not read the file: {e}"))?;
+    // One byte more than the limit tells "exactly at the limit" from "over it".
+    let mut bytes = Vec::new();
+    file.take(MAX_TORRENT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("could not read the file: {e}"))?;
+    if bytes.len() as u64 > MAX_TORRENT_BYTES {
+        return Err(format!(
+            "the .torrent file is larger than {} MiB",
+            MAX_TORRENT_BYTES / (1024 * 1024)
+        ));
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_only_torrent_files_within_the_limit() {
+        let dir = std::env::temp_dir().join(format!("hashlark-open-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ok = dir.join("A.TORRENT");
+        std::fs::write(&ok, b"d4:infode").unwrap();
+        assert_eq!(read_torrent(&ok).unwrap(), b"d4:infode");
+
+        let wrong = dir.join("notes.txt");
+        std::fs::write(&wrong, b"x").unwrap();
+        assert!(read_torrent(&wrong).unwrap_err().contains(".torrent"));
+        assert!(read_torrent(&dir.join("missing.torrent")).is_err());
+
+        let at_limit = dir.join("limit.torrent");
+        std::fs::write(&at_limit, vec![0u8; MAX_TORRENT_BYTES as usize]).unwrap();
+        assert_eq!(read_torrent(&at_limit).unwrap().len() as u64, MAX_TORRENT_BYTES);
+        let over = dir.join("over.torrent");
+        std::fs::write(&over, vec![0u8; MAX_TORRENT_BYTES as usize + 1]).unwrap();
+        assert!(read_torrent(&over).unwrap_err().contains("larger"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn args(list: &[&str]) -> Vec<String> {
         std::iter::once("hashlark")
