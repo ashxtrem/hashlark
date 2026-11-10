@@ -5,6 +5,8 @@ package io.github.ashxtrem.hashlark.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.ashxtrem.hashlark.BuildConfig
+import io.github.ashxtrem.hashlark.core.AddRequest
+import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.core.AvailableUpdate
 import io.github.ashxtrem.hashlark.core.HashlarkApi
 import io.github.ashxtrem.hashlark.core.HashlarkFailure
@@ -44,6 +46,9 @@ sealed interface AppEvent {
     data class RunSearch(val query: io.github.ashxtrem.hashlark.core.SearchQuery) : AppEvent
     data class ImportRepo(val url: String) : AppEvent
     data class ImportDefinition(val yaml: String, val fileName: String?) : AppEvent
+
+    /** A magnet link or `.torrent` file opened from another app, for the built-in client. */
+    data class AddTorrent(val source: AddSource) : AppEvent
 }
 
 /**
@@ -54,6 +59,10 @@ sealed interface AppEvent {
 class AppViewModel(
     private val runtime: HashlarkRuntime,
     private val prefs: AppPrefs,
+    /** The engine with the torrent client started (`HashlarkApplication.startTorrents`). */
+    private val torrentApi: suspend () -> HashlarkApi = { runtime.api() },
+    /** Called after a torrent was added: starts the download service. */
+    private val onTorrentAdded: () -> Unit = {},
     /** Looks for a newer release; a parameter so tests never touch the network. */
     private val checkForNewerRelease: suspend () -> AvailableUpdate? = {
         UpdateChecker(currentVersion = BuildConfig.VERSION_NAME.substringBefore('-')).check()
@@ -175,6 +184,27 @@ class AppViewModel(
         throw e
     } catch (_: Exception) {
         null
+    }
+
+    // ----- torrents ---------------------------------------------------------------------
+
+    /**
+     * Adds a torrent to the built-in client with the default options and starts the
+     * download service. The one-time notice, `ask_on_add` and the Add sheet build on this.
+     */
+    fun addTorrent(source: AddSource) {
+        viewModelScope.launch {
+            try {
+                val response = torrentApi().addTorrent(AddRequest(source))
+                val name = response.torrent.name
+                say(if (response.already) "Already in downloads: $name" else "Downloading $name")
+                onTorrentAdded()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                report(e, "Could not add the torrent")
+            }
+        }
     }
 
     // ----- providers --------------------------------------------------------------------

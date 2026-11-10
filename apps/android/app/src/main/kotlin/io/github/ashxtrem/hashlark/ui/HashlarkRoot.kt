@@ -136,6 +136,7 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
                     screens.repos.requestAdd(event.url)
                 }
                 is AppEvent.ImportDefinition -> Unit // shown by the activity through pendingDefinition
+                is AppEvent.AddTorrent -> app.addTorrent(event.source)
             }
         }
     }

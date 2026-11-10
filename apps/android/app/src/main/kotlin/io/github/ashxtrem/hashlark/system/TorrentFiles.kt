@@ -61,7 +61,7 @@ object TorrentFiles {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, MIME_TYPE)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        // Hashlark opens .yml files, never torrents: keep it out of its own chooser.
+        // This hands the file to another client: keep Hashlark (which also opens .torrent files) out of the chooser.
         val chooser = Intent.createChooser(intent, "Open with").putExtra(
             Intent.EXTRA_EXCLUDE_COMPONENTS,
             arrayOf(ComponentName(context, MainActivity::class.java)),

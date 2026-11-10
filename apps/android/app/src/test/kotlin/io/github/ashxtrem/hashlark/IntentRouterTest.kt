@@ -4,6 +4,7 @@ package io.github.ashxtrem.hashlark
 
 import android.content.Intent
 import android.net.Uri
+import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.ui.AppEvent
 import io.github.ashxtrem.hashlark.ui.Destination
 import org.junit.Assert.assertEquals
@@ -19,7 +20,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class IntentRouterTest {
     private fun route(intent: Intent, files: Map<String, String> = emptyMap()) =
-        IntentRouter.route(intent) { files[it.toString()] }
+        IntentRouter.route(intent, readText = { files[it.toString()] })
 
     @Test
     fun `shared text starts a search`() {
@@ -67,6 +68,42 @@ class IntentRouterTest {
         val event = route(Intent(Intent.ACTION_VIEW, Uri.parse(uri)), mapOf(uri to "id: x\nname: X"))
         assertEquals("id: x\nname: X", (event as AppEvent.ImportDefinition).yaml)
         assertNull(route(Intent(Intent.ACTION_VIEW, Uri.parse(uri)), emptyMap()))
+    }
+
+    @Test
+    fun `a magnet link adds a torrent`() {
+        val magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Ubuntu"
+        val event = route(Intent(Intent.ACTION_VIEW, Uri.parse(magnet)))
+        assertEquals(AddSource.Magnet(magnet), (event as AppEvent.AddTorrent).source)
+    }
+
+    @Test
+    fun `a torrent file adds a torrent by its type or name`() {
+        val bytes = "d4:infod4:name1:aee".toByteArray()
+        val read = { _: Uri -> bytes }
+        val expected = AddSource.Torrent(java.util.Base64.getEncoder().encodeToString(bytes))
+
+        // A file manager gives an opaque content Uri with the type.
+        val typed = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://docs/document/42"), "application/x-bittorrent")
+        assertEquals(expected, (IntentRouter.route(typed, { null }, read) as AppEvent.AddTorrent).source)
+
+        // A browser download often has only the name.
+        val named = Intent(Intent.ACTION_VIEW, Uri.parse("content://downloads/files/Ubuntu.Torrent"))
+        assertEquals(expected, (IntentRouter.route(named, { null }, read) as AppEvent.AddTorrent).source)
+    }
+
+    @Test
+    fun `an unreadable or too big torrent file does nothing`() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("file:///sdcard/Download/big.torrent"))
+        assertNull(IntentRouter.route(intent, { "not yaml" }, { null }))
+        assertNull(IntentRouter.route(intent, { null }, { ByteArray(0) }))
+    }
+
+    @Test
+    fun `a yaml file is not taken for a torrent`() {
+        val uri = Uri.parse("content://files/provider.yml")
+        assertTrue(!IntentRouter.isTorrentFile(uri, "text/yaml"))
+        assertTrue(IntentRouter.isTorrentFile(uri, "application/x-bittorrent"))
     }
 
     @Test
