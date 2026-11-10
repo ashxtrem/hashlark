@@ -104,13 +104,23 @@ pub fn keep_awake_wanted(mode: KeepAwake, torrents: &[TorrentSummary]) -> bool {
     }
 }
 
-/// "Not all done": something downloads, or waits (queued or checking) to
-/// download. Seeding doesn't count.
+/// "Not all done": something downloads, or waits to download: queued,
+/// checking, paused (a pause is temporary and keeps its slot) or held back
+/// by the battery, the schedule or the network. Seeding doesn't count, nor
+/// does a stopped torrent (it left the queue).
 pub fn download_pending(torrents: &[TorrentSummary]) -> bool {
     torrents.iter().any(|t| {
         downloading(t)
-            || (matches!(t.state, TorrentState::Queued | TorrentState::Checking)
-                && t.progress < 1.0)
+            || (matches!(
+                t.state,
+                TorrentState::Queued
+                    | TorrentState::Checking
+                    | TorrentState::Paused
+                    | TorrentState::OnBattery
+                    | TorrentState::ScheduledOff
+                    | TorrentState::ScheduledSeedOnly
+                    | TorrentState::WaitingForNetwork
+            ) && t.progress < 1.0)
     })
 }
 
@@ -120,7 +130,8 @@ pub enum Step {
     None,
     /// Start the countdown for this action.
     Fire(WhenDoneAction),
-    /// A download started again during the countdown: stop counting.
+    /// A download started again, or the client went off, during the
+    /// countdown: stop counting.
     Abort,
 }
 
@@ -132,37 +143,54 @@ pub struct WhenDone {
     pub counting: bool,
     /// The previous snapshot had downloads pending.
     busy: bool,
+    /// Bumped whenever a countdown starts or is cancelled; a countdown only
+    /// fires if it still holds the current value.
+    generation: u64,
 }
 
 impl WhenDone {
     /// Feeds one snapshot. `running` is false when the client is off, which
-    /// never counts as "all done".
+    /// never counts as "all done" and stops a running countdown.
     pub fn observe(&mut self, running: bool, busy: bool) -> Step {
         let was_busy = std::mem::replace(&mut self.busy, running && busy);
-        if !running {
-            return Step::None;
-        }
         if self.counting {
-            if busy {
-                self.counting = false;
+            if !running || busy {
+                self.cancel();
                 return Step::Abort;
             }
             return Step::None;
         }
-        if was_busy && !busy && self.action != WhenDoneAction::Nothing {
+        if running && was_busy && !busy && self.action != WhenDoneAction::Nothing {
             self.counting = true;
+            self.generation += 1;
             return Step::Fire(self.action);
         }
         Step::None
     }
 
-    pub fn set(&mut self, action: WhenDoneAction) {
-        self.action = action;
-        self.counting = false;
+    /// The generation of the countdown that runs (or ran last).
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
-    /// The countdown ran out: the action runs and the choice resets.
-    pub fn fired(&mut self) -> WhenDoneAction {
+    fn cancel(&mut self) {
+        self.counting = false;
+        self.generation += 1;
+    }
+
+    /// Sets the choice, cancelling a running countdown.
+    pub fn set(&mut self, action: WhenDoneAction) {
+        self.action = action;
+        self.cancel();
+    }
+
+    /// The countdown of `generation` ran out: returns the action to run and
+    /// resets the choice. Returns `Nothing` when that countdown was
+    /// cancelled or replaced meanwhile.
+    pub fn fired(&mut self, generation: u64) -> WhenDoneAction {
+        if !self.counting || generation != self.generation {
+            return WhenDoneAction::Nothing;
+        }
         let action = self.action;
         self.action = WhenDoneAction::Nothing;
         self.counting = false;
@@ -183,8 +211,6 @@ pub fn countdown_secs(env: Option<&str>) -> u64 {
 #[derive(Debug, Default)]
 pub struct Power {
     when_done: Mutex<WhenDone>,
-    /// Bumped to cancel a running countdown.
-    generation: Mutex<u64>,
 }
 
 /// Payload of `when-done-countdown`.
@@ -217,14 +243,21 @@ impl Power {
         }
     }
 
-    fn bump(&self) -> u64 {
-        let mut g = self.generation.lock().expect("lock");
-        *g += 1;
-        *g
-    }
-
-    fn current(&self) -> u64 {
-        *self.generation.lock().expect("lock")
+    /// Feeds one snapshot to "When all done" and acts on the result.
+    fn observe(&self, app: &AppHandle, running: bool, busy: bool) {
+        let (step, generation) = {
+            let mut w = self.when_done.lock().expect("lock");
+            let step = w.observe(running, busy);
+            (step, w.generation())
+        };
+        match step {
+            Step::None => {}
+            Step::Fire(action) => start_countdown(app, action, generation),
+            Step::Abort => {
+                tracing::info!(running, "when-all-done countdown stopped");
+                self.changed(app);
+            }
+        }
     }
 
     /// Sets the choice (cancelling a countdown) and tells the UI and tray.
@@ -235,7 +268,6 @@ impl Power {
                 action.label()
             ));
         }
-        self.bump();
         self.when_done.lock().expect("lock").set(action);
         tracing::info!(action = action.as_str(), "when all done");
         self.changed(app);
@@ -308,21 +340,8 @@ async fn follow_events(app: AppHandle, torrents: TorrentService) {
                     session.running && keep_awake_wanted(mode, &list),
                 );
                 crate::tray::sync_turtle(&app, session.turtle);
-                let step = {
-                    let power = app.state::<Power>();
-                    let mut w = power.when_done.lock().expect("lock");
-                    w.observe(session.running, download_pending(&list))
-                };
-                match step {
-                    Step::None => {}
-                    Step::Fire(action) => start_countdown(&app, action),
-                    Step::Abort => {
-                        let power = app.state::<Power>();
-                        power.bump();
-                        tracing::info!("a download started again; when-all-done countdown stopped");
-                        power.changed(&app);
-                    }
-                }
+                app.state::<Power>()
+                    .observe(&app, session.running, download_pending(&list));
             }
             Some(TorrentEvent::Completed { name, .. }) => {
                 let shown = app
@@ -338,8 +357,7 @@ async fn follow_events(app: AppHandle, torrents: TorrentService) {
             Some(TorrentEvent::Error { .. }) => {}
             None => {
                 set_awake(&mut awake, false);
-                let power = app.state::<Power>();
-                power.when_done.lock().expect("lock").observe(false, false);
+                app.state::<Power>().observe(&app, false, false);
             }
         }
     }
@@ -372,9 +390,8 @@ fn set_awake(guard: &mut Option<keepawake::KeepAwake>, wanted: bool) {
     }
 }
 
-fn start_countdown(app: &AppHandle, action: WhenDoneAction) {
+fn start_countdown(app: &AppHandle, action: WhenDoneAction, generation: u64) {
     let power = app.state::<Power>();
-    let generation = power.bump();
     let seconds = countdown_secs(std::env::var(COUNTDOWN_ENV).ok().as_deref());
     tracing::info!(
         action = action.as_str(),
@@ -388,11 +405,12 @@ fn start_countdown(app: &AppHandle, action: WhenDoneAction) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(seconds)).await;
         let power = app.state::<Power>();
-        if power.current() != generation {
+        // Checked under the same lock that cancelling takes.
+        let action = power.when_done.lock().expect("lock").fired(generation);
+        if action == WhenDoneAction::Nothing {
             tracing::info!("when-all-done countdown cancelled");
             return;
         }
-        let action = power.when_done.lock().expect("lock").fired();
         power.changed(&app);
         run_action(&app, action).await;
     });
@@ -528,8 +546,25 @@ mod tests {
         // A seed waiting for a seeding slot is done.
         assert!(!download_pending(&[t(TorrentState::Queued, 1.0)]));
         assert!(!download_pending(&[t(TorrentState::Seeding, 1.0)]));
-        assert!(!download_pending(&[t(TorrentState::Paused, 0.3)]));
         assert!(!download_pending(&[]));
+    }
+
+    #[test]
+    fn held_back_and_paused_downloads_are_pending() {
+        for state in [
+            TorrentState::Paused,
+            TorrentState::OnBattery,
+            TorrentState::ScheduledOff,
+            TorrentState::ScheduledSeedOnly,
+            TorrentState::WaitingForNetwork,
+        ] {
+            assert!(download_pending(&[t(state, 0.3)]), "{state:?}");
+            // Complete: it only waits to seed.
+            assert!(!download_pending(&[t(state, 1.0)]), "{state:?}");
+        }
+        // Stopped left the queue.
+        assert!(!download_pending(&[t(TorrentState::Stopped, 0.3)]));
+        assert!(!download_pending(&[t(TorrentState::Error, 0.3)]));
     }
 
     #[test]
@@ -540,9 +575,10 @@ mod tests {
         assert_eq!(w.observe(true, true), Step::None);
         assert_eq!(w.observe(true, false), Step::Fire(WhenDoneAction::Quit));
         assert!(w.counting);
+        let g = w.generation();
         // Stays quiet while counting and idle.
         assert_eq!(w.observe(true, false), Step::None);
-        assert_eq!(w.fired(), WhenDoneAction::Quit);
+        assert_eq!(w.fired(g), WhenDoneAction::Quit);
         assert_eq!(w.action, WhenDoneAction::Nothing);
         // Reset: the next finish does nothing.
         assert_eq!(w.observe(true, true), Step::None);
@@ -591,6 +627,60 @@ mod tests {
         w.set(WhenDoneAction::Nothing);
         assert!(!w.counting);
         w.observe(true, true);
+        assert_eq!(w.observe(true, false), Step::None);
+    }
+
+    #[test]
+    fn cancel_between_check_and_fire_wins() {
+        let mut w = WhenDone::default();
+        w.set(WhenDoneAction::Shutdown);
+        w.observe(true, true);
+        assert_eq!(w.observe(true, false), Step::Fire(WhenDoneAction::Shutdown));
+        let g = w.generation();
+        // The user cancels just as the timer ends.
+        w.set(WhenDoneAction::Nothing);
+        assert_eq!(w.fired(g), WhenDoneAction::Nothing);
+        // Chosen again before the old timer ends: it still can't fire.
+        w.set(WhenDoneAction::Shutdown);
+        assert_eq!(w.fired(g), WhenDoneAction::Nothing);
+        assert_eq!(w.action, WhenDoneAction::Shutdown);
+    }
+
+    #[test]
+    fn set_during_abort_does_not_fire_the_old_countdown() {
+        let mut w = WhenDone::default();
+        w.set(WhenDoneAction::Sleep);
+        w.observe(true, true);
+        assert_eq!(w.observe(true, false), Step::Fire(WhenDoneAction::Sleep));
+        let g = w.generation();
+        assert_eq!(w.observe(true, true), Step::Abort);
+        w.set(WhenDoneAction::Quit);
+        assert_eq!(w.fired(g), WhenDoneAction::Nothing);
+        // A new countdown has its own generation and fires.
+        assert_eq!(w.observe(true, false), Step::Fire(WhenDoneAction::Quit));
+        let g2 = w.generation();
+        assert_ne!(g, g2);
+        assert_eq!(w.fired(g), WhenDoneAction::Nothing);
+        assert_eq!(w.fired(g2), WhenDoneAction::Quit);
+    }
+
+    #[test]
+    fn client_going_off_cancels_the_countdown() {
+        let mut w = WhenDone::default();
+        w.set(WhenDoneAction::Hibernate);
+        w.observe(true, true);
+        assert_eq!(
+            w.observe(true, false),
+            Step::Fire(WhenDoneAction::Hibernate)
+        );
+        let g = w.generation();
+        // No snapshot for a while, or the client was disabled.
+        assert_eq!(w.observe(false, false), Step::Abort);
+        assert!(!w.counting);
+        assert_eq!(w.fired(g), WhenDoneAction::Nothing);
+        // Still armed; coming back with nothing pending doesn't fire.
+        assert_eq!(w.action, WhenDoneAction::Hibernate);
+        assert_eq!(w.observe(false, false), Step::None);
         assert_eq!(w.observe(true, false), Step::None);
     }
 
