@@ -254,7 +254,9 @@ pub async fn get_settings(State(state): State<AppState>) -> Json<Settings> {
     Json(state.engine.settings())
 }
 
-/// Replaces all settings. Fields left out take their defaults.
+/// Replaces all settings. Fields left out take their defaults. On the
+/// headless server, `torrents.download_dir` and `torrents.watch_dir` must be
+/// inside the configured roots (`400 invalid` otherwise).
 #[utoipa::path(
     put, path = "/settings", tag = "settings",
     request_body = Settings,
@@ -265,7 +267,25 @@ pub async fn put_settings(
     State(state): State<AppState>,
     Json(settings): Json<Settings>,
 ) -> ApiResult<Json<Settings>> {
-    Ok(Json(state.engine.set_settings(settings).await?))
+    // On the server the torrent folders must lie inside the allowed roots.
+    let policy = state.torrents.path_policy();
+    if matches!(policy, hashlark_torrent::PathPolicy::Roots(_)) {
+        for dir in [
+            &settings.torrents.download_dir,
+            &settings.torrents.watch_dir,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            policy.check(dir)?;
+        }
+    }
+    let saved = state.engine.set_settings(settings).await?;
+    if let Err(err) = state.torrents.apply_settings(&saved).await {
+        // The settings are saved; the client reports its own state in /torrents/stats.
+        tracing::warn!(%err, "the torrent client did not apply the new settings");
+    }
+    Ok(Json(saved))
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

@@ -30,3 +30,9 @@ secrets = "file"
 # [tls]
 # cert = "/etc/hashlark/fullchain.pem"
 # key = "/etc/hashlark/privkey.pem"
+
+# The built-in torrent client. It listens on port 6881 (TCP and UDP): publish
+# that port in Docker. It may only use folders inside `roots`.
+# [torrents]
+# download_dir = "/downloads"   # default: <data dir>/downloads
+# roots = ["/downloads"]        # default: [download_dir]

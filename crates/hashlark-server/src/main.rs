@@ -12,6 +12,8 @@ use hashlark_core::engine::EngineOptions;
 use hashlark_core::secrets::{FileSecretStore, KeychainSecretStore, SecretStore};
 use hashlark_core::{AppPaths, Engine};
 use hashlark_server::{AuthConfig, HostPolicy, ServerConfig, UiSource, router};
+use hashlark_torrent::paths::server_download_dir;
+use hashlark_torrent::{PathPolicy, ServiceOptions, TorrentService};
 use tracing_subscriber::EnvFilter;
 
 use config::{FileConfig, SecretsBackend};
@@ -258,7 +260,9 @@ async fn serve(args: Args, resolved: Resolved, engine: Engine) -> anyhow::Result
             "listening on {bind} without TLS: API keys travel in clear text. Enable [tls] or put Hashlark behind an HTTPS reverse proxy."
         );
     }
-    let app = router(engine, config).into_make_service_with_connect_info::<SocketAddr>();
+    let torrents = start_torrents(&resolved, &engine).await;
+    let app = router(engine, torrents.clone(), config)
+        .into_make_service_with_connect_info::<SocketAddr>();
     let handle = axum_server::Handle::new();
     let shutdown = handle.clone();
     tokio::spawn(async move {
@@ -274,19 +278,47 @@ async fn serve(args: Args, resolved: Resolved, engine: Engine) -> anyhow::Result
         version = hashlark_core::VERSION,
         "hashlark-server listening"
     );
-    match tls {
+    let served: anyhow::Result<()> = match tls {
         Some((cert, key)) => {
-            let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key)
-                .await
-                .with_context(|| format!("loading TLS certificate {}", cert.display()))?;
-            axum_server::bind_rustls(bind, tls)
-                .handle(handle)
-                .serve(app)
-                .await?;
+            match axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key).await {
+                Ok(tls) => axum_server::bind_rustls(bind, tls)
+                    .handle(handle)
+                    .serve(app)
+                    .await
+                    .map_err(Into::into),
+                Err(e) => Err(anyhow::Error::from(e)
+                    .context(format!("loading TLS certificate {}", cert.display()))),
+            }
         }
-        None => {
-            axum_server::bind(bind).handle(handle).serve(app).await?;
-        }
+        None => axum_server::bind(bind)
+            .handle(handle)
+            .serve(app)
+            .await
+            .map_err(Into::into),
+    };
+    torrents.stop().await;
+    served
+}
+
+/// Builds the torrent client, limited to the `[torrents]` roots, and starts
+/// it when it is on. A failed start is logged: the rest of the server runs.
+async fn start_torrents(resolved: &Resolved, engine: &Engine) -> TorrentService {
+    let data_dir = resolved.paths.data_dir();
+    let config = resolved.file.torrents.clone().unwrap_or_default();
+    let download_dir = config
+        .download_dir
+        .unwrap_or_else(|| server_download_dir(data_dir));
+    let roots = config.roots.unwrap_or_else(|| vec![download_dir.clone()]);
+    let torrents = TorrentService::new(
+        engine.clone(),
+        ServiceOptions {
+            path_policy: PathPolicy::Roots(roots),
+            listen_port_override: Some(6881),
+            ..ServiceOptions::new(data_dir, download_dir)
+        },
+    );
+    if let Err(err) = torrents.start().await {
+        tracing::error!(%err, "the torrent client did not start");
     }
-    Ok(())
+    torrents
 }
