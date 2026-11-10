@@ -72,7 +72,7 @@ Availability checked on 2026-09-28:
 - **G6**: A small, fast desktop app: installer under about 15 MB, idle memory under about 80 MB, first results in under 2 s on a healthy network.
 
 ### Non-goals (v1)
-- A built-in BitTorrent downloader. We hand off to qBittorrent, Transmission, the OS magnet handler and so on. Possible in Phase 3 with `librqbit`.
+- ~~A built-in BitTorrent downloader. We hand off to qBittorrent, Transmission, the OS magnet handler and so on. Possible in Phase 3 with `librqbit`.~~ Now built in with `librqbit`, on by default; the OS hand-off remains when it is off. See [ADR 0017](adr/0017-built-in-torrent-client.md).
 - Automated CAPTCHA or bot-challenge solving. Where a site presents a challenge, the **user** completes it in a webview (see [§8.5](#85-bot-challenge-pages-user-assisted)).
 - Hosting any server-side relay or proxy for users.
 - iOS.
@@ -90,7 +90,7 @@ Availability checked on 2026-09-28:
 | D5 | Provider model | Native + Definition (YAML) + Torznab. **No script plugins in v1.** | Definitions can't run code, so importing them from a URL is safe |
 | D6 | Storage | **SQLite** (`sqlx`) | Embedded, works on every platform |
 | D7 | Default providers | **Legal sources only** (Internet Archive, Academic Torrents, Linux distros) | Keeps app-store policies and legal exposure manageable |
-| D8 | Download handoff | **OS handler only**: magnets open in whatever app the OS has registered for `magnet:`; `.torrent` files are saved or opened | Simplest option, works with any client, no client-specific code |
+| D8 | Download handoff | **OS handler only**: magnets open in whatever app the OS has registered for `magnet:`; `.torrent` files are saved or opened. Amended by [ADR 0017](adr/0017-built-in-torrent-client.md): the built-in client is the default, and this handoff applies when it is off | Simplest option, works with any client, no client-specific code |
 | D9 | Headless server | **Ships in v1.0** (standalone binary + Docker image) and also serves the Svelte web UI | Lets the app run on a NAS or home server, be used from a browser, and feed Sonarr/Radarr |
 | D10 | Telemetry | **None** | Privacy; no backend to run |
 | D11 | Licence | **GPL-3.0-or-later** | Keeps forks open; normal for this kind of tool; all planned dependencies (MIT/Apache/BSD) are compatible |
@@ -506,6 +506,9 @@ data: {"search_id":"s_81f","provider":"example-html","error_kind":"blocked","mes
 7. **First-run**: a short welcome, a legal notice, and the default legal providers already enabled.
 
 ### 10.4 Handing downloads to a client (decision D8: OS handler only)
+
+> Amended by [ADR 0017](adr/0017-built-in-torrent-client.md). With the built-in client on (the default), Download starts the torrent in Hashlark. The rest of this section applies when the built-in client is off.
+
 - **Magnet**: `tauri-plugin-opener` passes the `magnet:` link to the OS, which opens whichever client is registered (qBittorrent, Transmission, Deluge and so on).
 - **No client registered**: show a clear message ("No app is set to open magnet links") with **Copy magnet** and a link to help on installing a client.
 - **.torrent**: download it to the configured folder, then open it with the OS default app.
@@ -664,7 +667,7 @@ Estimates assume **one developer working part time** (about 15–20 h/week). Adj
 | **A3** | Parity + release | Challenge WebView, repos, history and favourites, Tor, signing, F-Droid metadata, store decision | v1.0 APK released | 2–3 wks |
 
 ### Phase 3 (optional)
-- Built-in downloader (`librqbit`) with streaming preview.
+- ~~Built-in downloader (`librqbit`) with streaming preview.~~ Built-in downloader done ([ADR 0017](adr/0017-built-in-torrent-client.md)). The streaming preview is still open.
 - Remote mode: the Android app as a client of a headless server.
 - Community definitions tooling (web-based definition tester).
 
@@ -695,7 +698,7 @@ Estimates assume **one developer working part time** (about 15–20 h/week). Adj
 |---|---|---|---|
 | 1 | Product name | **Hashlark** | §1 |
 | 2 | Core / UI / Android approach | Rust core · Svelte (Tauri) · standalone Android | D1–D3 |
-| 3 | Download handoff | **OS handler only** (magnet → registered app; `.torrent` → save/open) | D8, §10.4 |
+| 3 | Download handoff | **OS handler only** (magnet → registered app; `.torrent` → save/open); amended by ADR 0017 (built-in client by default) | D8, §10.4 |
 | 4 | Headless server mode | **Ships in v1.0**, with web UI and Docker image | D9, §9.4, M6.5 |
 | 5 | Telemetry | **None** | D10, §14 |
 | 6 | Licence | **GPL-3.0-or-later** | D11, §14 |

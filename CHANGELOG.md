@@ -6,6 +6,12 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ### Added
 
+- **Built-in torrent client** ([ADR 0017](docs/adr/0017-built-in-torrent-client.md)). Hashlark now downloads and seeds torrents itself, on desktop, on the headless server and on Android, so no other client is needed. It's on by default; turn it off in Settings to send results to your own client as before.
+  - Downloads page: Pause, Stop and Force start; filters and a queue you can reorder; seeding limits; connection limits; a weekly speed schedule with a turtle toggle; keep awake, "When all done" and on-battery rules; a one-time notice before the first download.
+  - Adding: Download on a result (Shift+click opens the Add dialog), pasting a magnet link, `.torrent` files, Hashlark as the magnet handler, a watched folder, and creating torrents on desktop and server.
+  - Torrent traffic connects directly and never uses Tor or the search proxy. An optional SOCKS5 proxy covers TCP peers and trackers only.
+  - Android: a foreground service with a progress notification, Wi-Fi only by default (with a setting for mobile data), and files in `Download/Hashlark`.
+  - Server: `[torrents]` in `hashlark.toml`, the `/api/v1/torrents` routes, and port 6881 over TCP and UDP.
 - **Send results to another device on the same network** ([ADR 0016](docs/adr/0016-lan-device-handoff.md)). The phone sends a magnet to the computer, which opens it in its torrent client, and the computer can send to the phone too.
   - Devices find each other with mDNS, or by a typed address. They pair once with a 6-digit PIN using SPAKE2, and links are encrypted with ChaCha20-Poly1305, with replay protection. No account or cloud is involved.
   - Desktop: **Settings → Devices on this network** (off by default) and **Send to device** in the result details.
