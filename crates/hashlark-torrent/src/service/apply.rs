@@ -34,8 +34,15 @@ impl TorrentService {
         let handles = self.handles(run);
         let facts = self.facts(run, &handles);
         let settings = run.settings.lock().expect("lock").clone();
-        let plan = desired_states(&facts, &settings, &self.policy_ctx());
-        run.state.lock().expect("lock").desired = plan.iter().cloned().collect();
+        let (ctx, limits) = self.context(&settings, self.now());
+        self.apply_limits(run, limits);
+        self.mark_done(run, &facts, &settings, ctx.now_ms).await;
+        let plan = desired_states(&facts, &settings, &ctx);
+        {
+            let mut st = run.state.lock().expect("lock");
+            st.desired = plan.iter().cloned().collect();
+            st.schedule = ctx.schedule_mode;
+        }
         for (hash, want) in plan {
             let result = match handles.get(&hash) {
                 Some(handle) => self.apply(run, &hash, handle, want).await,
@@ -66,13 +73,12 @@ impl TorrentService {
                     id: row.info_hash.clone(),
                     run_mode: row.run_mode,
                     queue_pos: row.queue_pos,
-                    has_metadata: handle.is_some(),
                     finished: stats.as_ref().is_some_and(|s| s.finished),
-                    done: row.done,
                     uploaded_total: counter.up,
                     downloaded_total: counter.down,
                     size: stats.as_ref().map_or(0, |s| s.total_bytes),
                     seeding_since: row.seeding_since,
+                    seed: row.seed,
                     error: st.errors.contains_key(&row.info_hash)
                         || stats.as_ref().is_some_and(|s| s.error.is_some()),
                 }
@@ -99,9 +105,8 @@ impl TorrentService {
                 .unpause(handle)
                 .await
                 .map_err(|e| invalid("could not resume", e)),
-            Desired::Paused | Desired::Stopped if is_active(handle) => {
-                self.pause_handle(run, hash, handle).await
-            }
+            Desired::Run => Ok(()),
+            _ if is_active(handle) => self.pause_handle(run, hash, handle).await,
             _ => Ok(()),
         }
     }
@@ -132,7 +137,7 @@ impl TorrentService {
     /// Starts or cancels the metadata fetch of a magnet without a handle.
     fn apply_pending(&self, run: &Arc<Running>, hash: &str, want: Desired) {
         let mut st = run.state.lock().expect("lock");
-        if want != Desired::Run {
+        if !want.runs() {
             if let Some(token) = st.pending.remove(hash) {
                 token.cancel();
             }

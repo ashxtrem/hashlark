@@ -20,7 +20,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use hashlark_core::settings::{Settings, SpeedLimits, TorrentSettings};
-use hashlark_core::store::now_ms;
 use hashlark_core::{Engine, Error, Result};
 use librqbit::api::TorrentIdOrHash;
 use librqbit::dht::DhtPersistenceConfig;
@@ -32,6 +31,7 @@ use librqbit::{
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+use crate::clock::{Clock, system_clock};
 use crate::model::{RunMode, ScheduleMode, TorrentEvent};
 use crate::paths::PathPolicy;
 use crate::store::{self, Row};
@@ -41,7 +41,7 @@ mod hook;
 mod tick;
 
 pub(crate) use apply::is_active;
-pub(crate) use hook::{Desired, PolicyCtx, TorrentFacts, desired_states, peer_share};
+pub(crate) use hook::{Desired, TorrentFacts, desired_states, peer_share};
 pub(crate) use tick::{Counter, live_counters};
 
 /// How often cumulative totals are written to SQLite.
@@ -62,6 +62,8 @@ pub struct ServiceOptions {
     pub listen_port_override: Option<u16>,
     /// Address to listen on; `0.0.0.0` by default.
     pub listen_ip: IpAddr,
+    /// How often the watched folder is polled (5 s).
+    pub watch_interval: Duration,
 }
 
 impl ServiceOptions {
@@ -72,6 +74,7 @@ impl ServiceOptions {
             path_policy: PathPolicy::Unrestricted,
             listen_port_override: None,
             listen_ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            watch_interval: Duration::from_secs(5),
         }
     }
 
@@ -106,6 +109,8 @@ pub(crate) struct Inner {
     lifecycle: tokio::sync::Mutex<()>,
     pub events: broadcast::Sender<TorrentEvent>,
     pub ctx: Mutex<Ctx>,
+    /// Where the policies get the time from.
+    pub clock: Mutex<Clock>,
 }
 
 /// Device state reported from outside.
@@ -143,6 +148,10 @@ pub(crate) struct State {
     pub incomplete: HashSet<String>,
     /// The policy's last decision per torrent.
     pub desired: HashMap<String, Desired>,
+    /// The schedule mode of the last policy run.
+    pub schedule: ScheduleMode,
+    /// The session speed limits last applied.
+    pub applied_limits: Option<SpeedLimits>,
     last_flush: Option<Instant>,
 }
 
@@ -153,11 +162,6 @@ pub(crate) fn limits_config(limits: SpeedLimits) -> LimitsConfig {
         upload_bps: bps(limits.up_kib),
         download_bps: bps(limits.down_kib),
     }
-}
-
-/// The session-wide limits in effect.
-pub(crate) fn effective_limits(t: &TorrentSettings) -> SpeedLimits {
-    if t.turtle { t.alt_limits } else { t.limits }
 }
 
 /// Validates an id and turns it into a librqbit key.
@@ -239,6 +243,7 @@ impl TorrentService {
                     on_battery: false,
                     network_allowed: true,
                 }),
+                clock: Mutex::new(system_clock()),
             }),
         }
     }
@@ -271,12 +276,10 @@ impl TorrentService {
             .ok_or_else(|| Error::Invalid("the built-in client is off".into()))
     }
 
-    pub(crate) fn policy_ctx(&self) -> PolicyCtx {
-        let ctx = *self.inner.ctx.lock().expect("lock");
-        PolicyCtx {
-            network_allowed: ctx.network_allowed,
-            on_battery: ctx.on_battery,
-        }
+    /// Replaces the clock the policies read (the schedule and the seed
+    /// minutes). For tests; the default is the system clock.
+    pub fn set_clock(&self, clock: Clock) {
+        *self.inner.clock.lock().expect("lock") = clock;
     }
 
     /// The download folder new torrents go to.
@@ -326,9 +329,7 @@ impl TorrentService {
             self.stop_locked().await;
             return self.start_locked(new).await;
         }
-        let limits = limits_config(effective_limits(&new));
-        run.session.ratelimits.set_download_bps(limits.download_bps);
-        run.session.ratelimits.set_upload_bps(limits.upload_bps);
+        // The reconcile applies the new limits.
         *run.settings.lock().expect("lock") = new;
         let _op = run.op_lock.lock().await;
         self.reconcile_locked(&run).await;
@@ -363,6 +364,7 @@ impl TorrentService {
             std::fs::create_dir_all(opts.root().join(dir))?;
         }
 
+        let limits = self.context(&t, self.now()).1;
         let listen_addr = SocketAddr::new(opts.listen_ip, port);
         let session_opts = SessionOptions {
             dht: t.dht.then(|| DhtSessionConfig {
@@ -392,7 +394,7 @@ impl TorrentService {
                 ..Default::default()
             }),
             disable_local_service_discovery: !t.lsd,
-            ratelimits: limits_config(effective_limits(&t)),
+            ratelimits: limits_config(limits),
             blocklist_url: t.blocklist_url.as_ref().map(ToString::to_string),
             // Restored torrents get this until they are re-added; explicit
             // adds compute their share from the torrents running then.
@@ -434,6 +436,7 @@ impl TorrentService {
             }
         });
         *run.tick.lock().expect("lock") = Some(handle);
+        self.spawn_watch(&run);
         tracing::info!(addr = ?run.session.listen_addr(), "torrent client started");
         Ok(())
     }
@@ -477,7 +480,7 @@ impl TorrentService {
                 save_dir: handle.output_folder().to_path_buf(),
                 source: crate::model::Origin::Torrent,
                 result_id: None,
-                added_at: now_ms(),
+                added_at: self.now().ms,
                 completed_at: None,
                 seeding_since: None,
                 run_mode: RunMode::Auto,
@@ -550,10 +553,6 @@ impl TorrentService {
             let _op = run.op_lock.lock().await;
             self.reconcile_locked(&run).await;
         }
-    }
-
-    pub(crate) fn schedule_mode(&self, _settings: &TorrentSettings) -> ScheduleMode {
-        ScheduleMode::Normal
     }
 }
 

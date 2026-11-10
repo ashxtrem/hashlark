@@ -9,8 +9,8 @@ use hashlark_core::{Error, Result};
 use librqbit::{Magnet, ManagedTorrent, TorrentStatsState};
 
 use crate::model::{
-    PeerInfo, RunMode, SessionStats, StateCounts, TorrentDetails, TorrentFile, TorrentState,
-    TorrentSummary,
+    PeerInfo, RunMode, ScheduleMode, SessionStats, StateCounts, TorrentDetails, TorrentFile,
+    TorrentState, TorrentSummary,
 };
 use crate::service::{Counter, Desired, Running, TorrentService, torrent_key};
 use crate::store::Row;
@@ -23,6 +23,8 @@ pub(crate) struct Parts<'a> {
     pub counter: Counter,
     pub error: Option<String>,
     pub desired: Option<Desired>,
+    /// The schedule mode of the last policy run.
+    pub schedule: ScheduleMode,
 }
 
 pub(crate) fn summarize(p: Parts<'_>) -> TorrentSummary {
@@ -37,14 +39,23 @@ pub(crate) fn summarize(p: Parts<'_>) -> TorrentSummary {
         .or_else(|| stats.as_ref().and_then(|s| s.error.clone()));
     let down_bps = live.map_or(0, |l| l.download_speed.as_bytes());
     let up_bps = live.map_or(0, |l| l.upload_speed.as_bytes());
+    // Not transferring: the user's Stop and Pause win over the reason the
+    // policy gives for the others.
     let parked = |finished: bool| match row.run_mode {
         RunMode::Stopped if finished => TorrentState::Finished,
         RunMode::Stopped => TorrentState::Stopped,
         RunMode::Paused => TorrentState::Paused,
-        _ if finished && row.done => TorrentState::Finished,
         _ => match p.desired {
             Some(Desired::Stopped) => TorrentState::Stopped,
             Some(Desired::Paused) => TorrentState::Paused,
+            Some(Desired::Done) => TorrentState::Done,
+            Some(Desired::OnBattery) => TorrentState::OnBattery,
+            Some(Desired::NetworkWait) => TorrentState::WaitingForNetwork,
+            Some(Desired::Scheduled) if p.schedule == ScheduleMode::Off => {
+                TorrentState::ScheduledOff
+            }
+            Some(Desired::Scheduled) => TorrentState::ScheduledSeedOnly,
+            _ if finished && row.done => TorrentState::Done,
             _ => TorrentState::Queued,
         },
     };
@@ -122,6 +133,7 @@ impl TorrentService {
                     counter: st.counters.get(hash).copied().unwrap_or_default(),
                     error: st.errors.get(hash).cloned(),
                     desired: st.desired.get(hash).copied(),
+                    schedule: st.schedule,
                 })
             })
             .collect()
@@ -150,6 +162,7 @@ impl TorrentService {
                             counter: Counter::from_row(row),
                             error: None,
                             desired: Some(Desired::Paused),
+                            schedule: ScheduleMode::Normal,
                         })
                     })
                     .collect())
@@ -266,7 +279,7 @@ impl TorrentService {
         match self.running() {
             Some(run) => Ok(self.session_stats(&run)),
             None => {
-                let ctx = self.policy_ctx();
+                let device = self.device();
                 let settings = self.engine().settings().torrents;
                 let list = self.list().await?;
                 Ok(SessionStats {
@@ -277,8 +290,8 @@ impl TorrentService {
                     dht_nodes: None,
                     schedule_mode: self.schedule_mode(&settings),
                     turtle: settings.turtle,
-                    on_battery: ctx.on_battery,
-                    network_allowed: ctx.network_allowed,
+                    on_battery: device.on_battery,
+                    network_allowed: device.network_allowed,
                     peers_connected: 0,
                     counts: counts(&list),
                 })
@@ -289,7 +302,7 @@ impl TorrentService {
     pub(crate) fn session_stats(&self, run: &Running) -> SessionStats {
         let snap = run.session.stats_snapshot();
         let settings = run.settings.lock().expect("lock").clone();
-        let ctx = self.policy_ctx();
+        let device = self.device();
         let dht_nodes = run.session.get_dht().map(|d| {
             let s = d.stats();
             u64::try_from(s.routing_table_size + s.routing_table_size_v6).unwrap_or(u64::MAX)
@@ -302,8 +315,8 @@ impl TorrentService {
             dht_nodes,
             schedule_mode: self.schedule_mode(&settings),
             turtle: settings.turtle,
-            on_battery: ctx.on_battery,
-            network_allowed: ctx.network_allowed,
+            on_battery: device.on_battery,
+            network_allowed: device.network_allowed,
             peers_connected: snap.peers.live,
             counts: counts(&self.summaries(run)),
         }
@@ -336,10 +349,14 @@ pub(crate) fn counts(list: &[TorrentSummary]) -> StateCounts {
                 &mut c.downloading
             }
             TorrentState::Seeding => &mut c.seeding,
-            TorrentState::Queued => &mut c.queued,
+            TorrentState::Queued
+            | TorrentState::ScheduledOff
+            | TorrentState::ScheduledSeedOnly
+            | TorrentState::OnBattery
+            | TorrentState::WaitingForNetwork => &mut c.queued,
             TorrentState::Paused => &mut c.paused,
             TorrentState::Stopped => &mut c.stopped,
-            TorrentState::Finished => &mut c.finished,
+            TorrentState::Finished | TorrentState::Done => &mut c.finished,
             TorrentState::Error => &mut c.error,
         };
         *slot += 1;

@@ -1,122 +1,111 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! The policy hook: where T4's queue, seeding, schedule, power and network
-//! policies (`src/policy/*`) plug into the tick.
+//! The policy hook: where the pure policies (`src/policy/*`) meet the
+//! service. It builds the context from the settings, the device state and
+//! the injected clock, applies the effective session rate limits, and marks
+//! torrents that reached their seed limit.
 
-use hashlark_core::settings::TorrentSettings;
+use hashlark_core::settings::{SpeedLimits, TorrentSettings};
 
-use crate::model::RunMode;
+use super::{Ctx, Running, TorrentService, limits_config};
+use crate::clock::Moment;
+use crate::model::{RunMode, ScheduleMode};
+use crate::policy::power::{BatteryEffect, battery_effect};
+use crate::policy::schedule::{effective_limits, mode_at};
+use crate::policy::seeding;
+use crate::store;
 
-/// What the policy knows about one torrent.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct TorrentFacts {
-    pub id: String,
-    pub run_mode: RunMode,
-    pub queue_pos: i64,
-    /// Metadata is known.
-    pub has_metadata: bool,
-    pub finished: bool,
-    /// The seed limit was reached.
-    pub done: bool,
-    pub uploaded_total: u64,
-    pub downloaded_total: u64,
-    /// Bytes of the selected files.
-    pub size: u64,
-    pub seeding_since: Option<i64>,
-    pub error: bool,
-}
+// The policy: facts + settings + context in, the desired state of every
+// torrent out. The tick and every operation apply the result with
+// `pause` / `unpause`.
+pub(crate) use crate::policy::{
+    Desired, PlanCtx, TorrentFacts, peer_share, plan as desired_states,
+};
 
-/// Context of one policy run.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct PolicyCtx {
-    pub network_allowed: bool,
-    pub on_battery: bool,
-}
-
-/// The policy's decision for one torrent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Desired {
-    Run,
-    Paused,
-    Stopped,
-}
-
-/// The hook where the queue, seeding, schedule, power and network policies
-/// plug in (T4, `src/policy/*`): facts + settings in, the desired state of
-/// every torrent out. The tick and every operation apply the result with
-/// `pause` / `unpause`.
-///
-/// For now a pass-through: `auto` and `forced` run, `paused` and `stopped`
-/// don't.
-pub(crate) fn desired_states(
-    facts: &[TorrentFacts],
-    _settings: &TorrentSettings,
-    _ctx: &PolicyCtx,
-) -> Vec<(String, Desired)> {
-    facts
-        .iter()
-        .map(|f| {
-            let want = match f.run_mode {
-                RunMode::Auto | RunMode::Forced => Desired::Run,
-                RunMode::Paused => Desired::Paused,
-                RunMode::Stopped => Desired::Stopped,
-            };
-            (f.id.clone(), want)
-        })
-        .collect()
-}
-
-/// Per-torrent connection limit sharing the global cap (plan §2):
-/// `min(own, max(20, global / running))`.
-pub(crate) fn peer_share(global: u32, own: u32, running: usize) -> u32 {
-    let running = u32::try_from(running.max(1)).unwrap_or(u32::MAX);
-    own.min((global / running).max(20))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn peer_share_formula() {
-        assert_eq!(peer_share(1000, 200, 3), 200);
-        assert_eq!(peer_share(1000, 200, 100), 20);
-        assert_eq!(peer_share(1000, 200, 0), 200);
-        assert_eq!(peer_share(1000, 50, 2), 50);
+impl TorrentService {
+    /// The service's clock reading (the system clock unless a test set one).
+    pub(crate) fn now(&self) -> Moment {
+        let clock = self.inner.clock.lock().expect("lock").clone();
+        clock()
     }
 
-    #[test]
-    fn pass_through_policy() {
-        let fact = |id: &str, run_mode| TorrentFacts {
-            id: id.into(),
-            run_mode,
-            queue_pos: 0,
-            has_metadata: true,
-            finished: false,
-            done: false,
-            uploaded_total: 0,
-            downloaded_total: 0,
-            size: 0,
-            seeding_since: None,
-            error: false,
+    /// Battery and network state reported from outside.
+    pub(crate) fn device(&self) -> Ctx {
+        *self.inner.ctx.lock().expect("lock")
+    }
+
+    /// What the weekly schedule says at `now`.
+    pub(crate) fn schedule_mode(&self, settings: &TorrentSettings) -> ScheduleMode {
+        mode_at(settings.schedule.as_ref(), self.now().local)
+    }
+
+    /// The policy context at `now`, and the session speed limits in effect.
+    pub(crate) fn context(
+        &self,
+        settings: &TorrentSettings,
+        now: Moment,
+    ) -> (PlanCtx, SpeedLimits) {
+        let device = self.device();
+        let battery = battery_effect(device.on_battery, settings.on_battery);
+        let schedule_mode = mode_at(settings.schedule.as_ref(), now.local);
+        let ctx = PlanCtx {
+            network_allowed: device.network_allowed,
+            schedule_mode,
+            on_battery_pause: battery == BatteryEffect::Pause,
+            now_ms: now.ms,
         };
-        let facts = [
-            fact("a", RunMode::Auto),
-            fact("p", RunMode::Paused),
-            fact("s", RunMode::Stopped),
-            fact("f", RunMode::Forced),
-        ];
-        let ctx = PolicyCtx {
-            network_allowed: true,
-            on_battery: false,
+        (ctx, effective_limits(settings, schedule_mode, battery))
+    }
+
+    /// Sets the session rate limits when they differ from the last ones.
+    pub(crate) fn apply_limits(&self, run: &Running, limits: SpeedLimits) {
+        {
+            let mut st = run.state.lock().expect("lock");
+            if st.applied_limits == Some(limits) {
+                return;
+            }
+            st.applied_limits = Some(limits);
+        }
+        let config = limits_config(limits);
+        run.session.ratelimits.set_download_bps(config.download_bps);
+        run.session.ratelimits.set_upload_bps(config.upload_bps);
+        tracing::debug!(?limits, "session speed limits changed");
+    }
+
+    /// The session speed limits in effect now, once the client runs.
+    pub fn applied_limits(&self) -> Option<SpeedLimits> {
+        self.running()?.state.lock().expect("lock").applied_limits
+    }
+
+    /// Sets `done` on `auto` torrents that reached their seed limit, and
+    /// clears it when the limit no longer applies (a higher limit, a new
+    /// minutes value). Persists what changed. The caller holds `op_lock`.
+    pub(crate) async fn mark_done(
+        &self,
+        run: &Running,
+        facts: &[TorrentFacts],
+        settings: &TorrentSettings,
+        now_ms: i64,
+    ) {
+        let changed: Vec<store::Row> = {
+            let mut st = run.state.lock().expect("lock");
+            facts
+                .iter()
+                .filter(|f| f.finished && f.run_mode == RunMode::Auto)
+                .filter_map(|f| {
+                    let reached = seeding::limit_reached(f, settings, now_ms);
+                    let row = st.rows.get_mut(&f.id)?;
+                    (row.done != reached).then(|| {
+                        row.done = reached;
+                        row.clone()
+                    })
+                })
+                .collect()
         };
-        let got = desired_states(&facts, &TorrentSettings::default(), &ctx);
-        let want = [
-            Desired::Run,
-            Desired::Paused,
-            Desired::Stopped,
-            Desired::Run,
-        ];
-        assert_eq!(got.iter().map(|g| g.1).collect::<Vec<_>>(), want);
+        for row in changed {
+            if let Err(e) = store::update(self.engine().store(), &row).await {
+                tracing::warn!(error = %e, "could not save torrent");
+            }
+        }
     }
 }

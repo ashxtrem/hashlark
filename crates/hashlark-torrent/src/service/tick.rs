@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use hashlark_core::Result;
-use hashlark_core::store::now_ms;
 use librqbit::ManagedTorrent;
 
 use super::{FLUSH_EVERY, Running, State, TorrentService};
@@ -109,7 +108,7 @@ impl TorrentService {
     fn observe(&self, run: &Running) -> (Vec<Row>, Vec<TorrentEvent>) {
         self.observe_counters(run);
         let handles = self.handles(run);
-        let now = now_ms();
+        let now = self.now().ms;
         let mut dirty = Vec::new();
         let mut events = Vec::new();
         let mut st = run.state.lock().expect("lock");

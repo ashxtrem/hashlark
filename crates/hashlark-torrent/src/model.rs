@@ -93,8 +93,18 @@ pub enum TorrentState {
     Queued,
     Paused,
     Stopped,
-    /// Complete and not seeding (seed limit reached, or stopped).
+    /// Complete and not seeding because it was stopped.
     Finished,
+    /// Complete and not seeding: the seed limit was reached.
+    Done,
+    /// Held back: the schedule says Off ("Scheduled: off").
+    ScheduledOff,
+    /// Held back: the schedule says Seed only ("Scheduled: seed only").
+    ScheduledSeedOnly,
+    /// Held back: paused while running on battery ("On battery").
+    OnBattery,
+    /// Held back: no allowed network ("Waiting for Wi-Fi").
+    WaitingForNetwork,
     Error,
 }
 
