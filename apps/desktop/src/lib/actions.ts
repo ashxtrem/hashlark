@@ -40,6 +40,20 @@ export async function copyMagnet(result: MergedResult): Promise<void> {
   }
 }
 
+/** Opens the "Send to device" dialog for the result's magnet (desktop only). */
+export async function sendToDevice(result: MergedResult): Promise<void> {
+  try {
+    const target = await app.client.resolve(result.id, 'magnet');
+    if (target.type !== 'magnet') {
+      toasts.error('This result has no magnet link, so it can’t be sent to a device.');
+      return;
+    }
+    ui.sendTarget = { title: result.primary.title, url: target.url };
+  } catch (e) {
+    toasts.error(`Could not get the magnet link: ${errorMessage(e)}`);
+  }
+}
+
 export async function saveTorrent(result: MergedResult): Promise<void> {
   try {
     const target = await app.client.resolve(result.id, 'torrent_file');

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
@@ -127,6 +128,10 @@ fun ResultDetails(
                         OutlinedButton(onClick = { actions.share(result) }) {
                             Icon(Icons.Filled.Share, contentDescription = null)
                             Text("Share", Modifier.padding(start = 8.dp))
+                        }
+                        OutlinedButton(onClick = { actions.sendToDevice(result) }) {
+                            Icon(Icons.Filled.Computer, contentDescription = null)
+                            Text("Send to computer", Modifier.padding(start = 8.dp))
                         }
                     }
                     if (result.hasTorrentFile) {

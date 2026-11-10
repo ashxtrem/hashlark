@@ -192,6 +192,7 @@ fun ResultRow(
                     if (result.hasMagnet) {
                         add(CustomAccessibilityAction("Copy magnet link") { actions.copyMagnet(result); true })
                         add(CustomAccessibilityAction("Share magnet link") { actions.share(result); true })
+                        add(CustomAccessibilityAction("Send to computer") { actions.sendToDevice(result); true })
                     }
                     if (result.hasTorrentFile) add(CustomAccessibilityAction("Save .torrent") { actions.saveTorrent(result); true })
                     primary.detailsUrl?.let { url -> add(CustomAccessibilityAction("View on site") { actions.viewOnSite(url); true }) }
@@ -347,6 +348,7 @@ private fun ResultMenu(
         if (result.hasMagnet) {
             MenuItem("Copy magnet link", onDismiss) { actions.copyMagnet(result) }
             MenuItem("Share magnet link", onDismiss) { actions.share(result) }
+            MenuItem("Send to computer…", onDismiss) { actions.sendToDevice(result) }
         }
         if (result.hasTorrentFile) {
             MenuItem("Save .torrent", onDismiss) { actions.saveTorrent(result) }

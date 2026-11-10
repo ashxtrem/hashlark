@@ -6,6 +6,11 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ### Added
 
+- **Send results to another device on the same network** ([ADR 0016](docs/adr/0016-lan-device-handoff.md)). The phone sends a magnet to the computer, which opens it in its torrent client, and the computer can send to the phone too.
+  - Devices find each other with mDNS, or by a typed address. They pair once with a 6-digit PIN using SPAKE2, and links are encrypted with ChaCha20-Poly1305, with replay protection. No account or cloud is involved.
+  - Desktop: **Settings → Devices on this network** (off by default) and **Send to device** in the result details.
+  - Android: **Send to computer** on results, plus **Settings → Devices on this network** with the phone's address and **Show pairing PIN**. It runs only while the app is open.
+  - New crate `hashlark-lan`, with `lan-send` and `lan-receive` examples for testing.
 - **Public Domain Torrents** (built in): about 1,000 classic films in the public domain, with the `.torrent` for each format on the film's page.
 - Definitions: `search.body` sends a templated request body (JSON by default) for APIs that don't take query parameters or forms.
 

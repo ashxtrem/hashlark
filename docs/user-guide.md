@@ -26,10 +26,40 @@ On each result:
 |---|---|
 | **⬇ Open in client** | Sends the magnet (or `.torrent`) to your torrent client. |
 | **Copy magnet** | Copies the magnet link. |
+| **Send to device** | Sends the magnet to Hashlark on your phone (see [Send results to another device](#send-results-to-another-device)). |
 | **.torrent** | Saves the `.torrent` file to your Downloads folder (or the folder in Settings) and opens it. |
 | **★** | Saves the result to **Favourites**. |
 
 Click a row for details: infohash, publish date, every site that has it, and a link to the site's page.
+
+## Send results to another device
+
+If you search on your phone but your torrent client runs on your computer, Hashlark can send a result across your Wi-Fi, and the other way round too. The other device opens it in its own torrent client. Both devices need Hashlark open and on the same network. Nothing goes through the internet.
+
+**Phone → computer**
+
+1. On the computer, go to **Settings → Devices on this network** and turn on **Share with devices on this network**. If Windows asks whether to allow Hashlark through the firewall, allow it. If your Wi-Fi is marked as a *Public* network, allow it there too.
+2. On the phone, open a result and tap **Send to computer**, or long-press a result. Pick your computer.
+3. The first time, the phone asks for a PIN. On the computer, click **Pair a phone** and type the 6-digit PIN it shows into the phone. The PIN works for 2 minutes.
+
+From then on, **Send to computer** and a tap on the computer is all it takes, and the magnet opens on the computer.
+
+**Computer → phone**
+
+1. On the phone, go to **Settings → Devices on this network** and tap **Show pairing PIN**.
+2. On the computer, open a result, click **Send to device** and pick the phone. Type the PIN the phone shows.
+
+Pairing works both ways, so once a phone and computer are paired, either can send to the other without a PIN. The phone receives links only while Hashlark is open on it.
+
+**If the other device isn't listed**
+
+Some networks, such as guest Wi-Fi and some routers, block the way devices find each other. Choose **Enter address…** and type the address the other device shows under **Settings → Devices on this network**, for example `192.168.1.20:47821`.
+
+**Good to know**
+
+- Only paired devices can send to you, and links are encrypted on the network.
+- To stop a device from sending, forget it under **Settings → Devices on this network**. It has to be paired again before it can send.
+- Only results with a magnet link can be sent; `.torrent`-only results can't yet.
 
 ## Providers
 
@@ -75,6 +105,7 @@ A provider's status explains what went wrong:
 | Network & privacy | Encrypted DNS provider, proxy, Tor, requests per second per site. |
 | Magnet links | Add public trackers to every magnet, and a tracker-list URL that's refreshed daily. |
 | Downloads | Folder for `.torrent` files. |
+| Devices on this network | Sharing results with your phone: on or off, **Pair a phone**, paired devices. |
 | Appearance & updates | Light, dark or system theme; automatic update checks. |
 
 ## Android
@@ -86,6 +117,7 @@ Everything above works the same on Android. What is different:
 - **Layouts follow the window.** On a phone or a foldable's cover screen you get one screen at a time (bottom bar; tap a result to see its details, Back returns to the list). On a tablet or an unfolded foldable the results and details sit side by side, and on very wide windows a filter panel joins them and the results become a sortable table. Half-open a foldable and Hashlark uses both halves: with the fold **horizontal** (tabletop), results are on top and the search box, chips and keyboard below; with the fold **vertical** (book), the list is on one side and the details on the other. Folding, unfolding or rotating in the middle of a search keeps the results.
 - **Provider status is one chip** next to the result count ("4 providers", or "3 of 4 providers" in red when some failed) so the results get the room. Tap it for each provider's count and speed, and for the way forward when a site needs a browser check.
 - **Search from anywhere:** share text or an IMDb link to Hashlark, or select text in any app and choose *Search in Hashlark*. Long-press the app icon for *New search*, *Favourites*, *History* and your last searches.
+- **Send to computer:** on a result's details or its long-press menu, send it to Hashlark on your computer; see [Send results to another device](#send-results-to-another-device). **Settings, Devices on this network** turns this on or off, shows the phone's address and a pairing PIN, and lists paired devices.
 - **Torrent client:** magnets open in the client Android picks; choose one in **Settings, Magnets and downloads**. `.torrent` files are saved to your Downloads folder and can be opened from the message that appears.
 - **Adding providers:** open a `.yml` definition from a file manager, or a `hashlark://repo?url=...` link. Hashlark always shows what it found and asks before adding. For a repository it shows the signing key first; only accept keys of people you trust.
 - **Browser checks** open in a window inside the app: pass the check, then tap **Done**.
@@ -101,7 +133,8 @@ Hashlark sends no analytics or crash reports. It only connects to:
 - the providers you enabled;
 - definition repositories you added;
 - your tracker-list URL, if you set one;
-- GitHub, to check for updates (you can turn this off).
+- GitHub, to check for updates (you can turn this off);
+- Hashlark on your own devices on the same network, if you share results with them. They find each other with mDNS, and only paired devices can send links, which are encrypted.
 
 Your searches, favourites and settings stay in a database on your computer.
 

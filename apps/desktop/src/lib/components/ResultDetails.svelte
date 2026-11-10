@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <script lang="ts">
-  import { Copy, Download, ExternalLink, FileDown, Star, X } from '@lucide/svelte';
-  import { copyMagnet, download, linkKinds, saveTorrent } from '$lib/actions';
+  import { Copy, Download, ExternalLink, FileDown, Send, Star, X } from '@lucide/svelte';
+  import { copyMagnet, download, linkKinds, saveTorrent, sendToDevice } from '$lib/actions';
   import { bytes, CATEGORY_LABELS, count, dateTime } from '$lib/format';
-  import { copyText, openExternal } from '$lib/platform';
+  import { copyText, isTauri, openExternal } from '$lib/platform';
   import { favorites } from '$lib/state/favorites.svelte';
   import { toasts } from '$lib/state/toasts.svelte';
   import { ui } from '$lib/state/ui.svelte';
@@ -53,6 +53,9 @@
       <div class="flex flex-wrap gap-2">
         <button class="btn-primary" onclick={() => download(result)}><Download size={16} /> Open in client</button>
         <button class="btn-outline" disabled={!links.magnet} onclick={() => copyMagnet(result)}><Copy size={16} /> Copy magnet</button>
+        {#if isTauri()}
+          <button class="btn-outline" disabled={!links.magnet} onclick={() => sendToDevice(result)}><Send size={16} /> Send to device</button>
+        {/if}
         <button class="btn-outline" disabled={!links.torrent} onclick={() => saveTorrent(result)}><FileDown size={16} /> .torrent</button>
         <button class="btn-outline" aria-pressed={favorites.has(result.id)} onclick={() => favorites.toggle(result)}>
           <Star size={16} fill={favorites.has(result.id) ? 'currentColor' : 'none'} class={favorites.has(result.id) ? 'text-warn' : ''} />

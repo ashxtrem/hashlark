@@ -57,6 +57,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.ashxtrem.hashlark.system.LanController
+import io.github.ashxtrem.hashlark.ui.lan.SendToDeviceSheet
 import io.github.ashxtrem.hashlark.ui.common.CenteredMessage
 import io.github.ashxtrem.hashlark.ui.common.DetailChrome
 import io.github.ashxtrem.hashlark.ui.common.LocalDetailChrome
@@ -82,6 +84,8 @@ class Screens(
     val providers: ProvidersViewModel,
     val repos: ReposViewModel,
     val settings: SettingsViewModel,
+    /** LAN sharing; `null` in tests that render the UI without the app's process state. */
+    val lan: LanController? = null,
 )
 
 /**
@@ -107,6 +111,16 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
         // A browser check finished: the provider may work now, so search again.
         app.refreshProviders()
         if (screens.search.state.value.shown != null) screens.search.run()
+    }
+    val lan = screens.lan
+
+    // Links a paired computer sends while Hashlark is open go straight to the torrent client.
+    LaunchedEffect(lan) {
+        lan?.received?.collect(actions::openReceived)
+    }
+    // A computer paired with this phone (Settings → Show pairing PIN).
+    LaunchedEffect(lan) {
+        lan?.paired?.collect { app.say("Paired with ${it.name}") }
     }
 
     LaunchedEffect(Unit) {
@@ -286,6 +300,10 @@ fun HashlarkRoot(screens: Screens, pendingDefinition: PendingDefinition?, onDefi
             },
             onDismiss = { actions.noHandlerMagnet = null },
         )
+    }
+    val sendTarget = actions.sendTarget
+    if (sendTarget != null && lan != null) {
+        SendToDeviceSheet(sendTarget, lan, say = { app.say(it) }, onDismiss = { actions.sendTarget = null })
     }
     trustPreview?.let { TrustDialog(it, onTrust = screens.repos::confirmAdd, onDismiss = screens.repos::cancelAdd) }
     pendingDefinition?.let { pending ->

@@ -4,6 +4,7 @@
   import { onMount, type Snippet } from 'svelte';
   import { LoaderCircle, TriangleAlert } from '@lucide/svelte';
   import ChallengeDialog from '$components/ChallengeDialog.svelte';
+  import DevicePicker from '$components/DevicePicker.svelte';
   import LoginScreen from '$components/LoginScreen.svelte';
   import NoHandlerDialog from '$components/NoHandlerDialog.svelte';
   import ResultDetails from '$components/ResultDetails.svelte';
@@ -13,13 +14,16 @@
   import WelcomeDialog from '$components/WelcomeDialog.svelte';
   import { app } from '$lib/state/app.svelte';
   import { favorites } from '$lib/state/favorites.svelte';
+  import { lan } from '$lib/state/lan.svelte';
   import { providers } from '$lib/state/providers.svelte';
 
   let { children }: { children: Snippet } = $props();
 
   onMount(async () => {
     await app.connect();
-    if (app.connection === 'ready') await Promise.all([providers.load(), favorites.load()]);
+    if (app.connection === 'ready') {
+      await Promise.all([providers.load(), favorites.load(), lan.listen()]);
+    }
   });
 </script>
 
@@ -34,6 +38,7 @@
   </div>
   <ResultDetails names={providers.names} />
   <NoHandlerDialog />
+  <DevicePicker />
   <ChallengeDialog />
   <WelcomeDialog />
 {:else if app.connection === 'needs_login'}

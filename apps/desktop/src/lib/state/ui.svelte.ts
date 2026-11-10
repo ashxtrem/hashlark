@@ -8,6 +8,8 @@ class UiState {
   details = $state<MergedResult | null>(null);
   /** Magnet that couldn't be opened because no torrent client is registered. */
   noHandlerMagnet = $state<string | null>(null);
+  /** A magnet waiting in the "Send to device" dialog. */
+  sendTarget = $state<{ title: string; url: string } | null>(null);
   /** Provider whose browser check the user is completing. */
   challenge = $state<{ providerId: string; name: string; url: string } | null>(null);
 }
