@@ -98,6 +98,8 @@ fun ResultDetails(
                     Text("Details", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            val settings by actions.settings.collectAsStateWithLifecycle()
+            val builtInClient = settings?.torrents?.enabled == true
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = if (onBack == null) 16.dp else 4.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -111,11 +113,10 @@ fun ResultDetails(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     val inClient by actions.inDownloads.collectAsStateWithLifecycle()
-                    if (DownloadsLogic.inClient(p.infoHash, inClient)) InDownloadsBadge()
+                    if (builtInClient && DownloadsLogic.inClient(p.infoHash, inClient)) InDownloadsBadge()
                 }
 
-                val settings by actions.settings.collectAsStateWithLifecycle()
-                if (settings?.torrents?.enabled == true) {
+                if (builtInClient) {
                     // The built-in client: a tap downloads at once, a long-press opens the Add sheet.
                     Surface(
                         shape = ButtonDefaults.shape,

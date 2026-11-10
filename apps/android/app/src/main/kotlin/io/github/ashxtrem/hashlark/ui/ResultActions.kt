@@ -25,7 +25,7 @@ import io.github.ashxtrem.hashlark.core.LanReceived
 import io.github.ashxtrem.hashlark.core.MergedResult
 import io.github.ashxtrem.hashlark.core.Settings
 import io.github.ashxtrem.hashlark.core.TargetPreference
-import io.github.ashxtrem.hashlark.hashlark
+import io.github.ashxtrem.hashlark.system.AppPrefs
 import io.github.ashxtrem.hashlark.system.MagnetLauncher
 import io.github.ashxtrem.hashlark.system.TorrentFiles
 import io.github.ashxtrem.hashlark.ui.lan.SendTarget
@@ -80,7 +80,8 @@ class ResultActions(
     }
 
     private suspend fun openMagnet(magnet: String) {
-        val preferred = context.hashlark.prefs.magnetPackage.first()
+        // The same store as the application's prefs (one DataStore per process).
+        val preferred = AppPrefs(context).magnetPackage.first()
         if (MagnetLauncher.open(context, magnet, preferred) == MagnetLauncher.Outcome.NoHandler) {
             noHandlerMagnet = magnet
         }
