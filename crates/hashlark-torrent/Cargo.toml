@@ -12,7 +12,7 @@ authors.workspace = true
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 data-encoding = "2.11.1"
 directories = "6.0.0"
-hashlark-core = { version = "0.1.2", path = "../hashlark-core", default-features = false }
+hashlark-core = { version = "0.2.0", path = "../hashlark-core", default-features = false }
 # rustls only: no OpenSSL / native-tls, no HTTP API or web UI.
 librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
 serde = { version = "1.0.229", features = ["derive"] }

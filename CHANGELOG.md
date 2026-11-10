@@ -4,6 +4,8 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 
 - **Built-in torrent client** ([ADR 0017](docs/adr/0017-built-in-torrent-client.md)). Hashlark now downloads and seeds torrents itself, on desktop, on the headless server and on Android, so no other client is needed. It's on by default; turn it off in Settings to send results to your own client as before.
