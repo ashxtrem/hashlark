@@ -42,6 +42,13 @@
       "deb"
     ],
     "category": "Utility",
+    "fileAssociations": [
+      {
+        "ext": ["torrent"],
+        "mimeType": "application/x-bittorrent",
+        "role": "Viewer"
+      }
+    ],
     "shortDescription": "Search many torrent indexers at once",
     "longDescription": "Hashlark is a neutral, privacy-focused torrent search app. It searches many indexers in parallel, merges and ranks the results, and hands magnet links to your torrent client.",
     "copyright": "Hashlark contributors",

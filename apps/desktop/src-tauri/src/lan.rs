@@ -12,10 +12,12 @@ use std::sync::{Arc, Mutex as StdMutex};
 
 use hashlark_core::secrets::SecretStore;
 use hashlark_lan::{Device, LanConfig, LanEvents, LanService, PairingCode, Platform, Received};
+use hashlark_torrent::model::{AddRequest, AddSource};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
+use crate::Backend;
 use crate::commands::{self, OpenOutcome};
 
 /// Event names the UI listens for.
@@ -64,9 +66,13 @@ pub struct ReceivedEvent {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 enum ReceivedOutcome {
+    /// Added to the built-in client.
+    Added,
     Opened,
     NoHandler,
-    Failed { message: String },
+    Failed {
+        message: String,
+    },
 }
 
 /// Opens received links and forwards the rest to the UI.
@@ -76,18 +82,37 @@ struct Events {
 
 impl LanEvents for Events {
     fn received(&self, item: Received) {
-        let outcome = match commands::hand_off_magnet(&self.app, &item.url) {
-            Ok(OpenOutcome::Opened) => ReceivedOutcome::Opened,
-            Ok(OpenOutcome::NoHandler) => ReceivedOutcome::NoHandler,
-            Err(message) => ReceivedOutcome::Failed { message },
-        };
-        let payload = ReceivedEvent {
-            from: item.from.name,
-            title: item.title,
-            url: item.url,
-            outcome,
-        };
-        let _ = self.app.emit(event::RECEIVED, payload);
+        let app = self.app.clone();
+        let torrents = app
+            .try_state::<Backend>()
+            .map(|b| b.torrents.clone())
+            .filter(|t| t.is_running());
+        tauri::async_runtime::spawn(async move {
+            let outcome = match torrents {
+                // The built-in client is on: download here.
+                Some(torrents) => {
+                    let req = AddRequest::new(AddSource::Magnet(item.url.clone()));
+                    match torrents.add(req).await {
+                        Ok(_) => ReceivedOutcome::Added,
+                        Err(e) => ReceivedOutcome::Failed {
+                            message: e.to_string(),
+                        },
+                    }
+                }
+                None => match commands::hand_off_magnet(&app, &item.url) {
+                    Ok(OpenOutcome::Opened) => ReceivedOutcome::Opened,
+                    Ok(OpenOutcome::NoHandler) => ReceivedOutcome::NoHandler,
+                    Err(message) => ReceivedOutcome::Failed { message },
+                },
+            };
+            let payload = ReceivedEvent {
+                from: item.from.name,
+                title: item.title,
+                url: item.url,
+                outcome,
+            };
+            let _ = app.emit(event::RECEIVED, payload);
+        });
     }
 
     fn devices_changed(&self) {
