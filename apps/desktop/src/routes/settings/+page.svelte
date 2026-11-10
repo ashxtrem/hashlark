@@ -47,7 +47,8 @@
     trackersUrl = draft.magnets.trackers_url ?? '';
     customDoh = draft.network.doh.custom_url ?? '';
     torUrl = draft.network.tor.socks_url ?? '';
-    error = null;  }
+    error = null;
+  }
 
   let refreshing = $state(false);
   let torStatus = $state<import('$lib/api/client').Schemas['TorStatus'] | null>(null);

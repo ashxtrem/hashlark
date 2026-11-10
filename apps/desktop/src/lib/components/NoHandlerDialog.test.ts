@@ -44,7 +44,9 @@ describe('NoHandlerDialog', () => {
     setEnabled(false);
     const saveSettings = vi.fn(async (s) => s);
     app.api = { saveSettings } as unknown as Api;
-    const add = vi.spyOn(torrents, 'add').mockResolvedValue(null);
+    const add = vi
+      .spyOn(torrents, 'add')
+      .mockResolvedValue({ already: false } as unknown as Awaited<ReturnType<typeof torrents.add>>);
 
     render(NoHandlerDialog);
     const button = screen.getByRole('button', { name: /Turn on the built-in client/, hidden: true });
@@ -55,7 +57,19 @@ describe('NoHandlerDialog', () => {
     // The saved setting is what the add flow reads, so the retry goes through.
     expect(torrents.enabled).toBe(true);
     expect(add).toHaveBeenCalledWith({ source: { magnet: MAGNET } });
-    expect(ui.noHandlerMagnet).toBeNull();
+    await vi.waitFor(() => expect(ui.noHandlerMagnet).toBeNull());
+  });
+
+  it('keeps the link when the add fails, so it can be retried', async () => {
+    setEnabled(false);
+    app.api = { saveSettings: vi.fn(async (s) => s) } as unknown as Api;
+    vi.spyOn(torrents, 'add').mockResolvedValue(null);
+
+    render(NoHandlerDialog);
+    const button = screen.getByRole('button', { name: /Turn on the built-in client/, hidden: true });
+    await fireEvent.click(button);
+
+    expect(ui.noHandlerMagnet).toBe(MAGNET);
   });
 
   it('keeps the dialog and does not add when saving fails', async () => {

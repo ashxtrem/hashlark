@@ -26,7 +26,8 @@ class Toasts {
   }
 
   success(message: string, action?: ToastAction): void {
-    this.show(message, 'success', 4000, action);
+    // Toasts with an action stay longer so keyboard users can reach it.
+    this.show(message, 'success', action ? 10000 : 4000, action);
   }
 
   error(message: string): void {

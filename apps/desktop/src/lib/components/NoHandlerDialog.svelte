@@ -30,8 +30,8 @@
     } finally {
       turningOn = false;
     }
-    ui.noHandlerMagnet = null;
-    await torrents.add({ source: { magnet } });
+    // Keep the dialog (and the link) if the add fails, so it can be retried.
+    if (await torrents.add({ source: { magnet } })) ui.noHandlerMagnet = null;
   }
 </script>
 

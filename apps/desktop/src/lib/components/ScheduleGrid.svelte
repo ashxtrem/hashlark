@@ -56,7 +56,7 @@
   }
 
   function key(e: KeyboardEvent) {
-    if (disabled) return;
+    if (disabled || e.ctrlKey || e.altKey || e.metaKey) return;
     const cell = cellForKey(e.key);
     if (cell) {
       e.preventDefault();
