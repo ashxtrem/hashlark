@@ -1,7 +1,8 @@
 # Hashlark
 
-A fast, private, cross-platform torrent **search** app. Hashlark asks many indexers at once, merges and ranks the results, and hands the magnet link or `.torrent` file to your torrent client.
+A fast, private, cross-platform torrent **search and download** app. Hashlark asks many indexers at once, merges and ranks the results, and downloads what you pick with its built-in torrent client. You can also turn the built-in client off and hand the magnet link or `.torrent` file to your own torrent client.
 
+- **Built-in torrent client:** downloads and seeds on desktop, on the server and on Android, with a queue, seeding limits, a weekly speed schedule and a watched folder. No other client is needed. Torrent traffic never uses Tor or the proxy you set for searches; see the [user guide](docs/user-guide.md#downloading).
 - **One search, every provider:**
   - results stream in as each site answers;
   - the same torrent found on several sites is shown once;
@@ -46,6 +47,7 @@ Android app (release build):
 ```
 crates/
   hashlark-core/     engine: providers, aggregation, definitions, network (DoH/proxy/Tor), storage
+  hashlark-torrent/  built-in torrent client on librqbit: queue, seeding, schedule, power
   hashlark-server/   HTTP API (REST + SSE + Torznab), web UI hosting, headless server binary
   hashlark-cli/      command line: search, definitions tooling, repositories
   hashlark-ffi/      UniFFI bindings of the core for the Android app
@@ -84,7 +86,7 @@ cargo run -p hashlark-server -- --bind 127.0.0.1:8787   # prints the first API k
 
 ## Legal
 
-Hashlark is a neutral search tool. It hosts no content, and it ships with legal sources only (the Internet Archive, Linux distributions, academic datasets, open-source software and public-domain films). You are responsible for complying with the law and copyright where you live.
+Hashlark is a neutral search and download tool. It hosts no content, and it ships with legal sources only (the Internet Archive, Linux distributions, academic datasets, open-source software and public-domain films). You are responsible for complying with the law and copyright where you live.
 
 ## Licence
 

@@ -571,7 +571,7 @@ fn network_for(settings: &Settings, embedded_tor: Option<Url>) -> crate::net::Ne
 }
 
 /// Upper bound for a downloaded `.torrent` file.
-const MAX_TORRENT_BYTES: u64 = 10 * 1024 * 1024;
+pub const MAX_TORRENT_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Makes `title` safe as a file name on every OS.
 pub fn sanitize_file_name(title: &str) -> String {

@@ -1,6 +1,6 @@
 # 0008. Hand downloads to the OS handler only
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0017](0017-built-in-torrent-client.md)
 - **Date:** 2026-09-28
 
 ## Context

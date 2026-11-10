@@ -67,6 +67,30 @@ interface HashlarkApi {
 
     /** Syncs every repository and the tracker list; returns how many repositories failed. */
     suspend fun syncAll(): Int
+
+    // ----- built-in torrent client ---------------------------------------------------------
+
+    /**
+     * Creates the client and starts it when `torrents.enabled`; [defaultDir] is where downloads
+     * go unless the settings name a folder. Calling it again does nothing. The other torrent
+     * calls fail with code `invalid_request` until it has been called.
+     */
+    suspend fun startTorrents(defaultDir: String)
+
+    suspend fun torrents(): List<TorrentSummary>
+    suspend fun torrent(id: String): TorrentDetails
+    suspend fun addTorrent(request: AddRequest): AddResponse
+    suspend fun updateTorrent(id: String, patch: TorrentPatch): TorrentDetails
+    suspend fun removeTorrent(id: String, deleteFiles: Boolean)
+    suspend fun torrentPeers(id: String): List<PeerInfo>
+    suspend fun torrentStats(): SessionStats
+    suspend fun torrentBulk(request: BulkRequest): BulkResult
+
+    /** The Wi-Fi gate: `unmetered || !unmetered_only`. */
+    suspend fun setNetworkAllowed(allowed: Boolean)
+
+    /** Battery state: power saver on or low level, and not charging. */
+    suspend fun setTorrentPower(onBattery: Boolean)
 }
 
 enum class TargetPreference(val wire: String) {
@@ -126,7 +150,7 @@ class EngineApi(private val engine: HashlarkEngine) : HashlarkApi {
     override suspend fun settings(): Settings = json.decodeFromString(call { engine.settings() })
 
     override suspend fun setSettings(settings: Settings) =
-        decode<Settings> { engine.setSettings(json.encodeToString(settings)) }
+        decode<Settings> { engine.setSettings(encodeSettings(json, settings)) }
 
     override suspend fun torStatus() = decode<TorStatus> { engine.torStatus() }
 
@@ -153,6 +177,32 @@ class EngineApi(private val engine: HashlarkEngine) : HashlarkApi {
     override suspend fun refreshTrackers(): Int = call { engine.refreshTrackers() }.toInt()
 
     override suspend fun syncAll(): Int = call { engine.syncAll() }.toInt()
+
+    override suspend fun startTorrents(defaultDir: String) = call { engine.startTorrents(defaultDir) }
+
+    override suspend fun torrents() = decodeList<TorrentSummary> { engine.torrents() }
+
+    override suspend fun torrent(id: String) = decode<TorrentDetails> { engine.torrent(id) }
+
+    override suspend fun addTorrent(request: AddRequest) =
+        decode<AddResponse> { engine.addTorrent(json.encodeToString(request)) }
+
+    override suspend fun updateTorrent(id: String, patch: TorrentPatch) =
+        decode<TorrentDetails> { engine.updateTorrent(id, json.encodeToString(patch)) }
+
+    override suspend fun removeTorrent(id: String, deleteFiles: Boolean) =
+        call { engine.removeTorrent(id, deleteFiles) }
+
+    override suspend fun torrentPeers(id: String) = decodeList<PeerInfo> { engine.torrentPeers(id) }
+
+    override suspend fun torrentStats() = decode<SessionStats> { engine.torrentStats() }
+
+    override suspend fun torrentBulk(request: BulkRequest) =
+        decode<BulkResult> { engine.torrentBulk(json.encodeToString(request)) }
+
+    override suspend fun setNetworkAllowed(allowed: Boolean) = call { engine.setNetworkAllowed(allowed) }
+
+    override suspend fun setTorrentPower(onBattery: Boolean) = call { engine.setTorrentPower(onBattery) }
 
     private suspend inline fun <reified T> decode(crossinline block: suspend () -> String): T =
         json.decodeFromString(call { block() })

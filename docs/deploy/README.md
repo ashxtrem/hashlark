@@ -34,9 +34,43 @@ docker logs hashlark          # the first API key
 docker exec hashlark hashlark-server key create phone
 ```
 
-There's also a [`docker-compose.yml`](docker-compose.yml). The image is multi-arch (amd64, arm64) and runs as an unprivileged user. Data lives in `/data`: the database, `secrets.json` (provider passwords, readable only by the server's user) and an optional `hashlark.toml`.
+There's also a [`docker-compose.yml`](docker-compose.yml). The image is multi-arch (amd64, arm64) and runs as an unprivileged user. Data lives in `/data`: the database, `secrets.json` (provider passwords, readable only by the server's user), the torrent client's state, downloads (unless you move them, see [Torrent client](#torrent-client)) and an optional `hashlark.toml`.
 
 To build the image yourself: `docker build -t hashlark .` from the repository root.
+
+## Torrent client
+
+The server includes the built-in torrent client. It's on by default. To turn it off, use **Settings → Torrent client** in the web UI. With it off, the server refuses to add torrents (`400`), and results still offer **Copy magnet**. The folders the client may use (`roots`) are set in `hashlark.toml`. The download folder can also be changed in the web UI, as long as it lies inside the roots:
+
+```toml
+[torrents]
+download_dir = "/downloads"   # default: <data dir>/downloads
+roots = ["/downloads"]        # default: [download_dir]
+```
+
+- **Downloads go to `<data dir>/downloads` by default** (`/data/downloads` in Docker), inside the data volume. The image declares `VOLUME /downloads`, but it isn't used unless `download_dir` points there. To keep downloads on the host, put the `[torrents]` table above in `/data/hashlark.toml` (inside the data volume) and mount a host folder at `/downloads`:
+
+  ```bash
+  docker run -d --name hashlark -p 8787:8787 -p 6881:6881/tcp -p 6881:6881/udp \
+    -v hashlark-data:/data -v /srv/downloads:/downloads ghcr.io/ashxtrem/hashlark:latest
+  ```
+
+  A host folder bind-mounted at `/downloads` must be writable by uid 10001, the server's user (for example `chown 10001 /srv/downloads`). The `docker-compose.yml` uses a named volume, which already is.
+
+- **Publish port 6881 over TCP and UDP.** Peers connect to it for incoming connections. Without it, the client still works, but only makes outgoing connections. Add these lines under `ports` in your `docker-compose.yml`:
+
+  ```yaml
+      ports:
+        - "8787:8787"
+        - "6881:6881/tcp"
+        - "6881:6881/udp"
+  ```
+
+- **`roots` limit the folders the client may use.** Downloads, the watched folder (`watch_dir`) and the files used to create torrents must all be inside one of the roots. Settings that point outside them are refused, and so are API requests for files outside them. Set `roots` to every folder you want the client to use, for example `["/downloads", "/media"]`.
+- **The API keys protect the torrent routes too.** They sit under `/api/v1/torrents`, behind the same keys as the rest of the API.
+- Torrent traffic connects directly and never goes through Tor or the search proxy. The optional SOCKS5 proxy for torrents covers TCP connections only.
+
+The state of the client (its session and saved torrents) is in `<data dir>/torrents`. [`hashlark.example.toml`](hashlark.example.toml) has the same settings, commented out.
 
 ## Linux service (systemd)
 
@@ -71,7 +105,7 @@ Settings come from, highest priority first:
 | Definitions dev folder | `--definitions-dir` | none |
 | Log level | `RUST_LOG` or `log =` | `info` |
 
-Search, network (DoH, proxy, Tor), provider and repository settings are made in the web UI, as on the desktop.
+Search, network (DoH, proxy, Tor), provider, repository and torrent client settings are made in the web UI, as on the desktop. The torrent folder `roots` are set in `hashlark.toml` only.
 
 ## Security
 

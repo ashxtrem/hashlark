@@ -375,6 +375,7 @@ data class Settings(
     val downloads: DownloadSettings = DownloadSettings(),
     val updates: UpdateSettings = UpdateSettings(),
     val ui: UiSettings = UiSettings(),
+    val torrents: TorrentSettings = TorrentSettings(),
 )
 
 @Serializable

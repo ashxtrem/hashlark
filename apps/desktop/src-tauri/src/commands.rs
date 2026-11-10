@@ -3,15 +3,17 @@
 //! Desktop-only commands. Everything else goes through the HTTP API, so the
 //! same UI also works in a browser against the headless server.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use hashlark_core::engine::{Session, SessionCookie};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
-use crate::{Backend, magnet_handler};
+use crate::Backend;
+use crate::magnet_handler::{self, HandlerStatus};
 
 #[derive(Debug, Serialize)]
 pub struct ApiEndpoint {
@@ -36,19 +38,24 @@ pub enum OpenOutcome {
     NoHandler,
 }
 
-/// Hands a magnet link to the app the OS has registered for it (ADR 0008).
+/// Hands a magnet link to the app the OS has registered for it. ADR 0008's
+/// OS hand-off is now the path for when the built-in client is off (plan
+/// `docs/torrent-client-plan.md` §2); with it on, the UI adds magnets
+/// through the HTTP API instead.
 #[tauri::command]
 pub fn open_magnet(app: AppHandle, url: String) -> Result<OpenOutcome, String> {
     hand_off_magnet(&app, &url)
 }
 
 /// Opens `url` in the registered torrent client. Also used for links that
-/// arrive from a paired phone.
+/// arrive from a paired phone while the built-in client is off. When the
+/// registered handler is Hashlark itself, that's `NoHandler`: handing the
+/// link over would only bring it back here.
 pub fn hand_off_magnet(app: &AppHandle, url: &str) -> Result<OpenOutcome, String> {
     if !url.starts_with("magnet:?") {
         return Err("not a magnet link".into());
     }
-    if magnet_handler::registered() == Some(false) {
+    if magnet_handler::registered().is_some_and(|s| !s.other_app()) {
         return Ok(OpenOutcome::NoHandler);
     }
     app.opener()
@@ -93,22 +100,25 @@ pub async fn save_torrent(
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// Shows a saved file in the file manager. Limited to the downloads folder.
+/// Shows a saved file in the file manager. Limited to the folder of saved
+/// `.torrent` files, the torrent client's download folder and the folders
+/// its torrents save into.
 #[tauri::command]
-pub fn reveal_path(
+pub async fn reveal_path(
     app: AppHandle,
     backend: State<'_, Backend>,
     path: String,
 ) -> Result<(), String> {
     let path = PathBuf::from(path);
-    let allowed = backend.engine.download_dir();
-    let inside = path
-        .canonicalize()
-        .ok()
-        .zip(allowed.canonicalize().ok())
-        .is_some_and(|(p, dir)| p.starts_with(dir));
-    if !inside {
-        return Err("only files in the downloads folder can be shown".into());
+    let mut allowed = vec![
+        backend.engine.download_dir(),
+        backend.torrents.download_dir(),
+    ];
+    if let Ok(list) = backend.torrents.list().await {
+        allowed.extend(list.into_iter().map(|t| t.save_dir));
+    }
+    if !inside_any(&path, &allowed) {
+        return Err("only files in the downloads folders can be shown".into());
     }
     app.opener()
         .reveal_item_in_dir(path)
@@ -189,8 +199,64 @@ pub async fn finish_challenge(
     Ok(count)
 }
 
-/// Whether an app is registered for magnet links (`null` if unknown).
+/// Whether `path` (resolved) lies in one of the folders.
+fn inside_any(path: &Path, dirs: &[PathBuf]) -> bool {
+    let Ok(path) = path.canonicalize() else {
+        return false;
+    };
+    dirs.iter()
+        .filter_map(|d| d.canonicalize().ok())
+        .any(|dir| path.starts_with(dir))
+}
+
+/// Whether an app is registered for magnet links and whether it is
+/// Hashlark (`null` if unknown).
 #[tauri::command]
-pub fn magnet_handler_status() -> Option<bool> {
+pub fn magnet_handler_status() -> Option<HandlerStatus> {
     magnet_handler::registered()
+}
+
+/// Makes Hashlark the `magnet:` handler, or stops being it (Windows and
+/// Linux). On macOS the user picks the default app; the bundle lists the
+/// scheme. Returns the new status.
+#[tauri::command]
+pub fn magnet_handler_register(
+    app: AppHandle,
+    register: bool,
+) -> Result<Option<HandlerStatus>, String> {
+    let deep_link = app.deep_link();
+    let result = if register {
+        deep_link.register("magnet")
+    } else {
+        deep_link.unregister("magnet")
+    };
+    result.map_err(|e| match e {
+        tauri_plugin_deep_link::Error::UnsupportedPlatform => {
+            "choose Hashlark as the app for magnet links in your system settings".to_owned()
+        }
+        e => e.to_string(),
+    })?;
+    tracing::info!(register, "magnet handler");
+    Ok(magnet_handler::registered())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reveals_only_inside_the_folders() {
+        let root = std::env::temp_dir().join(format!("hashlark-reveal-{}", std::process::id()));
+        let a = root.join("a");
+        let b = root.join("b");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        let file = b.join("x.bin");
+        std::fs::write(&file, b"").unwrap();
+        assert!(!inside_any(&file, std::slice::from_ref(&a)));
+        assert!(inside_any(&file, &[a.clone(), b.clone()]));
+        assert!(!inside_any(&a.join("../b/x.bin"), std::slice::from_ref(&a)));
+        assert!(!inside_any(&a.join("missing"), std::slice::from_ref(&a)));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }

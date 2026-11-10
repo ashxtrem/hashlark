@@ -21,12 +21,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.ashxtrem.hashlark.core.Theme
+import io.github.ashxtrem.hashlark.ffi.maxTorrentBytes
 import io.github.ashxtrem.hashlark.system.Shortcuts
+import io.github.ashxtrem.hashlark.system.TorrentService
+import io.github.ashxtrem.hashlark.ui.AppEvent
 import io.github.ashxtrem.hashlark.ui.AppViewModel
 import io.github.ashxtrem.hashlark.ui.HashlarkRoot
 import io.github.ashxtrem.hashlark.ui.LibraryViewModel
 import io.github.ashxtrem.hashlark.ui.PendingDefinition
 import io.github.ashxtrem.hashlark.ui.Screens
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ProvidersViewModel
 import io.github.ashxtrem.hashlark.ui.providers.ReposViewModel
 import io.github.ashxtrem.hashlark.ui.search.SearchViewModel
@@ -49,19 +53,32 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     private val hashlarkApp get() = application as HashlarkApplication
 
-    private val appVm: AppViewModel by viewModels { factory { AppViewModel(hashlarkApp.runtime, hashlarkApp.prefs) } }
+    private val appVm: AppViewModel by viewModels {
+        factory {
+            AppViewModel(
+                hashlarkApp.runtime,
+                hashlarkApp.prefs,
+                torrentApi = { hashlarkApp.startTorrents() },
+                onTorrentAdded = { TorrentService.start(hashlarkApp) },
+            )
+        }
+    }
     private val searchVm: SearchViewModel by viewModels { factory { SearchViewModel(hashlarkApp.runtime) } }
     private val libraryVm: LibraryViewModel by viewModels { factory { LibraryViewModel(appVm) } }
     private val providersVm: ProvidersViewModel by viewModels { factory { ProvidersViewModel(appVm) } }
     private val reposVm: ReposViewModel by viewModels { factory { ReposViewModel(appVm) } }
     private val settingsVm: SettingsViewModel by viewModels { factory { SettingsViewModel(appVm) } }
+    private val downloadsVm: DownloadsViewModel by viewModels { factory { DownloadsViewModel(appVm) } }
 
     private var pendingDefinition by mutableStateOf<PendingDefinition?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, hashlarkApp.lan)
+        val screens = Screens(appVm, searchVm, libraryVm, providersVm, reposVm, settingsVm, downloadsVm, hashlarkApp.lan)
+        // Start the torrent client (and its service when torrents are unfinished) before any intent adds one.
+        // Also on a re-created activity: the service may have been stopped meanwhile; this is idempotent.
+        hashlarkApp.resumeTorrents()
         if (savedInstanceState == null) handle(intent)
 
         // Recent searches become launcher shortcuts once a search has finished.
@@ -110,20 +127,32 @@ class MainActivity : ComponentActivity() {
         val data = intent.data
         val isFile = intent.action == Intent.ACTION_VIEW && (data?.scheme == "content" || data?.scheme == "file")
         if (isFile && data != null) {
-            // Reading a file is I/O: do it off the main thread, then show the confirmation.
+            // Reading a file is I/O: do it off the main thread, then show the confirmation or add the torrent.
             lifecycleScope.launch {
-                val text = withContext(Dispatchers.IO) { readText(data) }
-                if (text == null) appVm.say("Could not read this file") else pendingDefinition = PendingDefinition(text, data.lastPathSegment)
+                val event = withContext(Dispatchers.IO) { IntentRouter.route(intent, ::readText, ::readTorrent) }
+                when (event) {
+                    null -> appVm.say("Could not read this file")
+                    is AppEvent.ImportDefinition -> pendingDefinition = PendingDefinition(event.yaml, event.fileName)
+                    else -> appVm.post(event)
+                }
             }
             return
         }
-        IntentRouter.route(intent) { null }?.let(appVm::post)
+        IntentRouter.route(intent, { null })?.let(appVm::post)
     }
 
-    private fun readText(uri: Uri): String? = runCatching {
+    private fun readText(uri: Uri): String? =
+        readBytes(uri, IntentRouter.MAX_DEFINITION_BYTES)
+            ?.decodeToString(throwOnInvalidSequence = false)
+            ?.takeIf { it.isNotBlank() }
+
+    /** A `.torrent` file, up to the core's size cap. */
+    private fun readTorrent(uri: Uri): ByteArray? =
+        readBytes(uri, maxTorrentBytes().toLong().coerceIn(0L, Int.MAX_VALUE - 1L).toInt())
+
+    private fun readBytes(uri: Uri, limit: Int): ByteArray? = runCatching {
         contentResolver.openInputStream(uri)?.use { stream ->
             // Read at most one byte more than allowed, so a huge file is refused without loading it.
-            val limit = IntentRouter.MAX_DEFINITION_BYTES
             val out = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(8 * 1024)
             while (out.size() <= limit) {
@@ -131,9 +160,9 @@ class MainActivity : ComponentActivity() {
                 if (n < 0) break
                 out.write(buffer, 0, n)
             }
-            if (out.size() > limit) null else out.toByteArray().decodeToString(throwOnInvalidSequence = false)
+            if (out.size() > limit) null else out.toByteArray()
         }
-    }.getOrNull()?.takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     private inline fun <reified T : ViewModel> factory(crossinline create: () -> T) = object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

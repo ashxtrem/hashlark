@@ -4,6 +4,7 @@ package io.github.ashxtrem.hashlark
 
 import androidx.compose.ui.unit.dp
 import io.github.ashxtrem.hashlark.core.SyncReport
+import io.github.ashxtrem.hashlark.ui.Destination
 import io.github.ashxtrem.hashlark.ui.HeightClass
 import io.github.ashxtrem.hashlark.ui.NavKind
 import io.github.ashxtrem.hashlark.ui.PanePlan
@@ -56,6 +57,21 @@ class WindowShapeTest {
             assertEquals("width $w", NavKind.Bar, s.navigation)
             assertFalse("width $w", twoPanes(s))
         }
+    }
+
+    @Test
+    fun `a bottom bar has five items without History, a rail and a drawer all six`() {
+        val bar = Destination.shownIn(NavKind.Bar)
+        assertEquals(5, bar.size)
+        assertFalse(Destination.History in bar)
+        assertEquals(Destination.Downloads, bar[1])
+        assertEquals(6, Destination.shownIn(NavKind.Rail).size)
+        assertEquals(6, Destination.shownIn(NavKind.Drawer).size)
+        // History stays reachable on a bar layout: it is a tab of Favourites, which the bar marks.
+        assertEquals(Destination.Favorites, Destination.highlighted(Destination.History, NavKind.Bar))
+        assertEquals(Destination.History, Destination.highlighted(Destination.History, NavKind.Rail))
+        assertTrue(Destination.libraryTabs(shape(360, 800).navigation))
+        assertFalse(Destination.libraryTabs(shape(750, 832).navigation))
     }
 
     @Test

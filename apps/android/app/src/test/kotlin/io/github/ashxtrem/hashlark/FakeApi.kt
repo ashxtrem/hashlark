@@ -3,6 +3,18 @@
 package io.github.ashxtrem.hashlark
 
 import io.github.ashxtrem.hashlark.core.AddRepoResponse
+import io.github.ashxtrem.hashlark.core.AddRequest
+import io.github.ashxtrem.hashlark.core.AddResponse
+import io.github.ashxtrem.hashlark.core.BulkRequest
+import io.github.ashxtrem.hashlark.core.BulkResult
+import io.github.ashxtrem.hashlark.core.PeerInfo
+import io.github.ashxtrem.hashlark.core.RunMode
+import io.github.ashxtrem.hashlark.core.TorrentOrigin
+import io.github.ashxtrem.hashlark.core.TorrentState
+import io.github.ashxtrem.hashlark.core.SessionStats
+import io.github.ashxtrem.hashlark.core.TorrentDetails
+import io.github.ashxtrem.hashlark.core.TorrentPatch
+import io.github.ashxtrem.hashlark.core.TorrentSummary
 import io.github.ashxtrem.hashlark.core.DefinitionCheck
 import io.github.ashxtrem.hashlark.core.DownloadTarget
 import io.github.ashxtrem.hashlark.core.Favorite
@@ -109,4 +121,30 @@ class FakeApi(
     override suspend fun removeRepo(id: String) = Unit
     override suspend fun refreshTrackers() = 0
     override suspend fun syncAll() = 0
+    override suspend fun startTorrents(defaultDir: String) = Unit
+    /** The built-in client's torrents, and what was asked of it. */
+    var torrentList: List<TorrentSummary> = emptyList()
+    val adds = mutableListOf<AddRequest>()
+    val patches = mutableListOf<Pair<String, TorrentPatch>>()
+    val bulks = mutableListOf<BulkRequest>()
+
+    override suspend fun torrents() = torrentList
+    override suspend fun torrent(id: String): TorrentDetails = TorrentDetails(torrentList.first { it.id == id })
+    override suspend fun addTorrent(request: AddRequest): AddResponse {
+        adds += request
+        return AddResponse(TorrentSummary("0123456789abcdef0123456789abcdef01234567", "Added", TorrentState.Metadata, RunMode.Auto, TorrentOrigin.Magnet))
+    }
+    override suspend fun updateTorrent(id: String, patch: TorrentPatch): TorrentDetails {
+        patches += id to patch
+        return torrent(id)
+    }
+    override suspend fun removeTorrent(id: String, deleteFiles: Boolean) = Unit
+    override suspend fun torrentPeers(id: String) = emptyList<PeerInfo>()
+    override suspend fun torrentStats() = SessionStats(running = true)
+    override suspend fun torrentBulk(request: BulkRequest): BulkResult {
+        bulks += request
+        return BulkResult(ok = request.ids.orEmpty())
+    }
+    override suspend fun setNetworkAllowed(allowed: Boolean) = Unit
+    override suspend fun setTorrentPower(onBattery: Boolean) = Unit
 }

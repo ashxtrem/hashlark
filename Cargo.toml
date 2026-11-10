@@ -24,7 +24,10 @@ strip = true
 
 # Android libraries keep their symbol table so `uniffi-bindgen` can read the
 # binding metadata from them; the Android Gradle plugin strips them when it
-# packages the APK.
+# packages the APK. They are optimised for size, as the built-in torrent client
+# would otherwise push the library past the per-ABI APK budget. `panic` stays
+# `unwind`: UniFFI turns a panic in a call into an error with `catch_unwind`.
 [profile.android]
 inherits = "release"
+opt-level = "s"
 strip = "none"

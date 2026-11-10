@@ -26,6 +26,19 @@ export type StoredDefinition = Schemas['StoredDefinition'];
 export type RepoView = Schemas['RepoView'];
 export type SyncReport = Schemas['SyncReport'];
 export type Favorite = Schemas['Favorite'];
+export type TorrentSummary = Schemas['TorrentSummary'];
+export type TorrentDetails = Schemas['TorrentDetails'];
+export type TorrentEvent = Schemas['TorrentEvent'];
+export type TorrentPatch = Schemas['TorrentPatch'];
+export type TorrentFile = Schemas['TorrentFile'];
+export type SessionStats = Schemas['SessionStats'];
+export type PeerInfo = Schemas['PeerInfo'];
+export type AddRequest = Schemas['AddRequest'];
+export type AddResponse = Schemas['AddResponse'];
+export type BulkRequest = Schemas['BulkRequest'];
+export type BulkResult = Schemas['BulkResult'];
+export type CreateRequest = Schemas['CreateRequest'];
+export type CreatedTorrent = Schemas['CreatedTorrent'];
 
 /** Where the API lives and how to authenticate. */
 export interface Endpoint {
@@ -305,5 +318,104 @@ export class Api {
 
   async clearHistory(): Promise<void> {
     unwrap(await this.client.DELETE('/history'));
+  }
+
+  // ----- built-in torrent client ---------------------------------------------
+
+  async torrents(): Promise<TorrentSummary[]> {
+    return unwrap(await this.client.GET('/torrents'));
+  }
+
+  /** Adds a torrent. Rejects with `invalid_request` when the client is off. */
+  async addTorrent(req: AddRequest): Promise<AddResponse> {
+    return unwrap(await this.client.POST('/torrents', { body: req }));
+  }
+
+  async torrentDetails(id: string): Promise<TorrentDetails> {
+    return unwrap(await this.client.GET('/torrents/{id}', { params: { path: { id } } }));
+  }
+
+  async updateTorrent(id: string, patch: TorrentPatch): Promise<TorrentDetails> {
+    return unwrap(
+      await this.client.PATCH('/torrents/{id}', { params: { path: { id } }, body: patch }),
+    );
+  }
+
+  async removeTorrent(id: string, deleteFiles = false): Promise<void> {
+    unwrap(
+      await this.client.DELETE('/torrents/{id}', {
+        params: { path: { id }, query: { delete_files: deleteFiles } },
+      }),
+    );
+  }
+
+  async torrentPeers(id: string): Promise<PeerInfo[]> {
+    return unwrap(await this.client.GET('/torrents/{id}/peers', { params: { path: { id } } }));
+  }
+
+  async torrentStats(): Promise<SessionStats> {
+    return unwrap(await this.client.GET('/torrents/stats'));
+  }
+
+  async bulkTorrents(req: BulkRequest): Promise<BulkResult> {
+    return unwrap(await this.client.POST('/torrents/bulk', { body: req }));
+  }
+
+  async createTorrent(req: CreateRequest): Promise<CreatedTorrent> {
+    return unwrap(await this.client.POST('/torrents/create', { body: req }));
+  }
+
+  /** URL of a torrent's `.torrent` file. It needs the `Authorization`
+   * header, so fetch it with {@link torrentFile} rather than navigating. */
+  torrentFileUrl(id: string): string {
+    return `${this.endpoint.baseUrl}/torrents/${encodeURIComponent(id)}/file`;
+  }
+
+  /** Downloads a torrent's `.torrent` file. */
+  async torrentFile(id: string): Promise<Blob> {
+    let response: Response;
+    try {
+      response = await fetch(this.torrentFileUrl(id), { headers: this.headers() });
+    } catch {
+      throw new ApiError(0, 'network', 'Could not reach the Hashlark engine.');
+    }
+    if (!response.ok) throw await errorFrom(response);
+    return response.blob();
+  }
+
+  /** Live torrent updates: a `snapshot` every second, plus `completed` and
+   * `error`. Ends when `signal` aborts or the connection closes. */
+  async *torrentEvents(signal?: AbortSignal): AsyncGenerator<TorrentEvent> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.endpoint.baseUrl}/torrents/events`, {
+        headers: { ...this.headers(), Accept: 'text/event-stream' },
+        signal,
+      });
+    } catch (e) {
+      if (signal?.aborted) return;
+      throw new ApiError(0, 'network', 'Could not reach the Hashlark engine.');
+    }
+    if (!response.ok || !response.body) throw await errorFrom(response);
+
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    const parser = new SseParser();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        for (const message of parser.push(value)) {
+          yield JSON.parse(message.data) as TorrentEvent;
+        }
+      }
+    } catch (e) {
+      if (signal?.aborted) return;
+      throw e;
+    } finally {
+      // Breaking out of the loop must close the connection, not just
+      // release the reader.
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   }
 }

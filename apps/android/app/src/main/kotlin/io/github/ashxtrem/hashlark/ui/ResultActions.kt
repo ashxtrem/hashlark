@@ -19,15 +19,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import io.github.ashxtrem.hashlark.challenge.ChallengeActivity
+import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.core.DownloadTarget
 import io.github.ashxtrem.hashlark.core.LanReceived
 import io.github.ashxtrem.hashlark.core.MergedResult
+import io.github.ashxtrem.hashlark.core.Settings
 import io.github.ashxtrem.hashlark.core.TargetPreference
-import io.github.ashxtrem.hashlark.hashlark
+import io.github.ashxtrem.hashlark.system.AppPrefs
 import io.github.ashxtrem.hashlark.system.MagnetLauncher
 import io.github.ashxtrem.hashlark.system.TorrentFiles
 import io.github.ashxtrem.hashlark.ui.lan.SendTarget
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -51,8 +54,22 @@ class ResultActions(
     /** A magnet waiting in the "Send to…" sheet. */
     var sendTarget: SendTarget? by mutableStateOf(null)
 
-    /** Opens the result in the user's torrent client (ADR 0008). */
-    fun open(result: MergedResult) {
+    /** Info hashes in the built-in client, for the "In downloads" badge. */
+    val inDownloads: StateFlow<Set<String>> get() = app.torrentIds
+
+    /** The saved settings; `torrents.enabled` decides between "Download" and "Open in client". */
+    val settings: StateFlow<Settings?> get() = app.settings
+
+    /**
+     * Downloads the result with the built-in client when it is on ([withOptions], a long-press,
+     * opens the Add sheet first). When it is off, the result is handed to the user's torrent
+     * app as before the built-in client existed (ADR 0008).
+     */
+    fun open(result: MergedResult, withOptions: Boolean = false) {
+        if (app.builtInClient) {
+            app.requestAdd(AddSource.ResultId(result.id), result.primary.title, withOptions)
+            return
+        }
         scope.launch {
             val target = app.withApi("Could not open this result") { it.resolve(result.id) } ?: return@launch
             when (target) {
@@ -63,7 +80,8 @@ class ResultActions(
     }
 
     private suspend fun openMagnet(magnet: String) {
-        val preferred = context.hashlark.prefs.magnetPackage.first()
+        // The same store as the application's prefs (one DataStore per process).
+        val preferred = AppPrefs(context).magnetPackage.first()
         if (MagnetLauncher.open(context, magnet, preferred) == MagnetLauncher.Outcome.NoHandler) {
             noHandlerMagnet = magnet
         }
@@ -82,8 +100,15 @@ class ResultActions(
         }
     }
 
-    /** A paired computer sent a link: open it in this phone's torrent client. */
+    /**
+     * A paired computer sent a link: the built-in client downloads it when it is on (a message says
+     * so), else it opens in this phone's torrent app.
+     */
     fun openReceived(item: LanReceived) {
+        if (app.builtInClient) {
+            app.requestAdd(AddSource.Magnet(item.url), item.title.ifBlank { null }, from = item.from.name)
+            return
+        }
         scope.launch {
             openMagnet(item.url)
             if (noHandlerMagnet == null) {

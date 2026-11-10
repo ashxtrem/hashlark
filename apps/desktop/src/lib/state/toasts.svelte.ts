@@ -6,20 +6,28 @@ export interface Toast {
   id: number;
   kind: ToastKind;
   message: string;
+  /** A link-style button, e.g. "Show". */
+  action?: ToastAction;
+}
+
+export interface ToastAction {
+  label: string;
+  run: () => void;
 }
 
 class Toasts {
   items = $state<Toast[]>([]);
   private next = 1;
 
-  show(message: string, kind: ToastKind = 'info', ms = 4000): void {
+  show(message: string, kind: ToastKind = 'info', ms = 4000, action?: ToastAction): void {
     const id = this.next++;
-    this.items.push({ id, kind, message });
+    this.items.push({ id, kind, message, action });
     setTimeout(() => this.dismiss(id), ms);
   }
 
-  success(message: string): void {
-    this.show(message, 'success');
+  success(message: string, action?: ToastAction): void {
+    // Toasts with an action stay longer so keyboard users can reach it.
+    this.show(message, 'success', action ? 10000 : 4000, action);
   }
 
   error(message: string): void {

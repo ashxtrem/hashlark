@@ -26,6 +26,18 @@
         {/if}
       </span>
       <p class="min-w-0 flex-1 break-words">{toast.message}</p>
+      {#if toast.action}
+        {@const action = toast.action}
+        <button
+          class="-my-0.5 shrink-0 text-sm font-medium text-accent hover:underline"
+          onclick={() => {
+            action.run();
+            toasts.dismiss(toast.id);
+          }}
+        >
+          {action.label}
+        </button>
+      {/if}
       <button class="icon-btn -my-1 -mr-2 size-6" aria-label="Dismiss" onclick={() => toasts.dismiss(toast.id)}>
         <X size={14} />
       </button>

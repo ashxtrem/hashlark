@@ -11,6 +11,7 @@ use hashlark_core::secrets::MemorySecretStore;
 use hashlark_core::{
     AppPaths, Engine, ProviderCtx, ProviderError, SearchProvider, SearchQuery, SearchResult, Store,
 };
+use hashlark_torrent::{ServiceOptions, TorrentService};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -42,7 +43,7 @@ impl SearchProvider for Fake {
     }
 }
 
-async fn app() -> Router {
+async fn engine() -> Engine {
     let fake: Arc<dyn SearchProvider> = Arc::new(Fake(ProviderInfo {
         id: "fake".into(),
         name: "Fake".into(),
@@ -55,7 +56,7 @@ async fn app() -> Router {
             paging: false,
         },
     }));
-    let engine = Engine::with_store(
+    Engine::with_store(
         AppPaths::at(std::env::temp_dir().join("hashlark-server-tests")),
         Store::open_in_memory().await.unwrap(),
         EngineOptions {
@@ -65,13 +66,28 @@ async fn app() -> Router {
         },
     )
     .await
-    .unwrap();
-    router(engine, ServerConfig::desktop(TOKEN.into())).layer(
-        axum::extract::connect_info::MockConnectInfo(std::net::SocketAddr::from((
-            [127, 0, 0, 1],
-            9,
-        ))),
-    )
+    .unwrap()
+}
+
+fn mock_peer(router: Router) -> Router {
+    router.layer(axum::extract::connect_info::MockConnectInfo(
+        std::net::SocketAddr::from(([127, 0, 0, 1], 9)),
+    ))
+}
+
+/// The API with a torrent client that was never started (so it is off).
+async fn app() -> Router {
+    let engine = engine().await;
+    let dir = std::env::temp_dir().join("hashlark-server-tests");
+    let torrents = TorrentService::new(
+        engine.clone(),
+        ServiceOptions::new(dir.join("data"), dir.join("downloads")),
+    );
+    mock_peer(router(
+        engine,
+        torrents,
+        ServerConfig::desktop(TOKEN.into()),
+    ))
 }
 
 fn get(uri: &str) -> Request<Body> {
@@ -315,6 +331,14 @@ async fn openapi_lists_routes() {
         "/providers/{id}",
         "/settings",
         "/health",
+        "/torrents",
+        "/torrents/events",
+        "/torrents/stats",
+        "/torrents/bulk",
+        "/torrents/create",
+        "/torrents/{id}",
+        "/torrents/{id}/peers",
+        "/torrents/{id}/file",
     ] {
         assert!(spec["paths"].get(path).is_some(), "missing {path}");
     }
@@ -471,3 +495,5 @@ async fn sessions_and_torznab_providers_via_api() {
     assert_eq!(view["id"], "torznab-prowlarr");
     assert_eq!(view["source"]["type"], "torznab");
 }
+
+mod torrent_api;

@@ -40,13 +40,15 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tini \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home /data hashlark \
- && mkdir -p /data && chown hashlark /data
+ && mkdir -p /data /downloads && chown hashlark /data /downloads
 COPY --from=server /usr/local/bin/hashlark-server /usr/local/bin/hashlark-server
 USER hashlark
 ENV HASHLARK_DATA_DIR=/data \
     HASHLARK_BIND=0.0.0.0:8787
 VOLUME ["/data"]
+VOLUME ["/downloads"]
 EXPOSE 8787
+EXPOSE 6881/tcp 6881/udp
 HEALTHCHECK --interval=60s --timeout=5s \
   CMD ["/bin/sh", "-c", "exec 3<>/dev/tcp/127.0.0.1/8787 && printf 'GET /api/v1/health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"ok\"' <&3"]
 ENTRYPOINT ["/usr/bin/tini", "--", "hashlark-server"]

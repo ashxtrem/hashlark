@@ -4,6 +4,7 @@ package io.github.ashxtrem.hashlark
 
 import android.content.Intent
 import android.net.Uri
+import io.github.ashxtrem.hashlark.core.AddSource
 import io.github.ashxtrem.hashlark.core.SearchIntent
 import io.github.ashxtrem.hashlark.core.SearchQuery
 import io.github.ashxtrem.hashlark.ui.AppEvent
@@ -17,6 +18,7 @@ import io.github.ashxtrem.hashlark.ui.Destination
  * - `hashlark://search?q=...` starts a search, `hashlark://repo?url=...` asks
  *   to add a repository (the user still has to confirm its signing key);
  * - a `.yml` file offers to add a provider definition (after a check);
+ * - a `magnet:` link or a `.torrent` file goes to the built-in torrent client;
  * - the launcher shortcuts open a screen.
  */
 object IntentRouter {
@@ -27,23 +29,38 @@ object IntentRouter {
     /** Largest definition file that is read. */
     const val MAX_DEFINITION_BYTES = 200_000
 
+    const val TORRENT_MIME_TYPE = "application/x-bittorrent"
+
     /**
      * @param readText reads the text behind a `content:` or `file:` Uri (`null` when it cannot be read).
+     * @param readTorrent reads the bytes of a `.torrent` file (`null` when it cannot be read or is too big).
      */
-    fun route(intent: Intent, readText: (Uri) -> String?): AppEvent? = when (intent.action) {
+    fun route(
+        intent: Intent,
+        readText: (Uri) -> String?,
+        readTorrent: (Uri) -> ByteArray? = { null },
+    ): AppEvent? = when (intent.action) {
         ACTION_NEW_SEARCH -> AppEvent.Navigate(Destination.Search)
         ACTION_FAVORITES -> AppEvent.Navigate(Destination.Favorites)
         ACTION_HISTORY -> AppEvent.Navigate(Destination.History)
         Intent.ACTION_SEND -> searchOf(intent.getStringExtra(Intent.EXTRA_TEXT))
         Intent.ACTION_PROCESS_TEXT -> searchOf(intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString())
-        Intent.ACTION_VIEW -> intent.data?.let { fromUri(it, readText) }
+        Intent.ACTION_VIEW -> intent.data?.let { fromUri(it, intent.type, readText, readTorrent) }
         else -> null
     }
 
     private fun searchOf(text: String?): AppEvent? =
         SearchIntent.fromSharedText(text)?.let { AppEvent.RunSearch(it) }
 
-    private fun fromUri(uri: Uri, readText: (Uri) -> String?): AppEvent? {
+    private fun fromUri(
+        uri: Uri,
+        mimeType: String?,
+        readText: (Uri) -> String?,
+        readTorrent: (Uri) -> ByteArray?,
+    ): AppEvent? {
+        if (uri.scheme.equals("magnet", ignoreCase = true)) {
+            return AppEvent.AddTorrent(AddSource.Magnet(uri.toString()))
+        }
         if (uri.scheme == "hashlark") {
             return when (uri.host) {
                 "repo" -> uri.getQueryParameter("url")?.takeIf { it.startsWith("http") }?.let { AppEvent.ImportRepo(it) }
@@ -54,11 +71,20 @@ object IntentRouter {
             }
         }
         if (uri.scheme == "content" || uri.scheme == "file") {
+            if (isTorrentFile(uri, mimeType)) {
+                val bytes = readTorrent(uri)?.takeIf { it.isNotEmpty() } ?: return null
+                return AppEvent.AddTorrent(AddSource.Torrent(java.util.Base64.getEncoder().encodeToString(bytes)))
+            }
             val yaml = readText(uri)?.takeIf { it.isNotBlank() } ?: return null
             return AppEvent.ImportDefinition(yaml, uri.lastPathSegment)
         }
         return null
     }
+
+    /** Whether a `content:` or `file:` Uri is a `.torrent` file, by its type or its name. */
+    fun isTorrentFile(uri: Uri, mimeType: String?): Boolean =
+        mimeType.equals(TORRENT_MIME_TYPE, ignoreCase = true) ||
+            uri.lastPathSegment?.endsWith(".torrent", ignoreCase = true) == true
 
     /** A `hashlark://search` link for a query, used by launcher shortcuts. */
     fun searchUri(query: SearchQuery): Uri = Uri.Builder()

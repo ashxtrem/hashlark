@@ -5,7 +5,9 @@
   import ApiKeysPanel from '$components/ApiKeysPanel.svelte';
   import DevicesPanel from '$components/DevicesPanel.svelte';
   import Switch from '$components/Switch.svelte';
+  import TorrentSettingsPanel from '$components/TorrentSettingsPanel.svelte';
   import { isTauri, pickFolder } from '$lib/platform';
+  import { withTextFields } from '$lib/settingsForm';
   import { app } from '$lib/state/app.svelte';
   import { errorMessage, toasts } from '$lib/state/toasts.svelte';
 
@@ -19,29 +21,17 @@
   let customDoh = $state(initial.network.doh.custom_url ?? '');
   let torUrl = $state(initial.network.tor.socks_url ?? '');
 
-  let dirty = $derived(
-    JSON.stringify(withTextFields(draft)) !== JSON.stringify(app.settings),
-  );
-
-  function withTextFields(s: Settings): Settings {
-    return {
-      ...s,
-      network: {
-        ...s.network,
-        proxy: proxy.trim() || null,
-        doh: { ...s.network.doh, custom_url: customDoh.trim() || null },
-        tor: { ...s.network.tor, socks_url: torUrl.trim() || null },
-      },
-      magnets: { ...s.magnets, trackers_url: trackersUrl.trim() || null },
-    };
-  }
+  // The text inputs outside `draft` (and the Torrent client panel's, inside it)
+  // are merged by `withTextFields`; anything not merged there is dropped on save.
+  const merged = (s: Settings) => withTextFields(s, { proxy, trackersUrl, customDoh, torUrl });
+  let dirty = $derived(JSON.stringify(merged(draft)) !== JSON.stringify(app.settings));
 
   async function save(e: SubmitEvent) {
     e.preventDefault();
     saving = true;
     error = null;
     try {
-      const saved = await app.saveSettings(withTextFields($state.snapshot(draft) as Settings));
+      const saved = await app.saveSettings(merged($state.snapshot(draft) as Settings));
       draft = structuredClone(saved);
       toasts.success('Settings saved');
     } catch (err) {
@@ -203,6 +193,7 @@
       {/if}
     </div>
     <p class="hint">Providers can also use Tor individually (Providers → Details → Route).</p>
+    <p class="hint">Downloads don't use Tor or this proxy; see Torrent client.</p>
     <label class="block max-w-xs">
       <span class="label">Requests per second to one site</span>
       <input class="input" type="number" min="1" max="20" bind:value={draft.network.per_host_rate} />
@@ -230,8 +221,10 @@
     {/if}
   </section>
 
+  <TorrentSettingsPanel bind:t={draft.torrents} />
+
   <section class="card space-y-4 p-5">
-    <h2 class="font-semibold">Downloads</h2>
+    <h2 class="font-semibold">Saved .torrent files</h2>
     <div>
       <span class="label">Save .torrent files to</span>
       <div class="flex gap-2">
@@ -240,7 +233,10 @@
           <button type="button" class="btn-outline shrink-0" onclick={browse}><FolderOpen size={15} /> Browse</button>
         {/if}
       </div>
-      <p class="hint">Magnet links go straight to the torrent client your system uses for them.</p>
+      <p class="hint">
+        Where .torrent files you save from a result go. Downloaded content goes to the Torrent client's download
+        folder.
+      </p>
     </div>
   </section>
 

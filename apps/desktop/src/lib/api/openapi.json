@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.1.0",
   "info": {
     "title": "Hashlark API",
@@ -10,7 +10,7 @@
       "name": "GPL-3.0-or-later",
       "identifier": "GPL-3.0-or-later"
     },
-    "version": "0.1.0"
+    "version": "0.1.2"
   },
   "servers": [
     {
@@ -1343,7 +1343,7 @@
         "tags": [
           "settings"
         ],
-        "summary": "Replaces all settings. Fields left out take their defaults.",
+        "summary": "Replaces all settings. Fields left out take their defaults. On the\nheadless server, `torrents.download_dir` and `torrents.watch_dir` must be\ninside the configured roots (`400 invalid` otherwise).",
         "operationId": "put_settings",
         "requestBody": {
           "content": {
@@ -1419,6 +1419,522 @@
             }
           },
           "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Every torrent, in queue order.",
+        "operationId": "list_torrents",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TorrentSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Adds a torrent from a magnet link, base64 `.torrent` bytes or a search\nresult id. A known info hash returns the existing torrent with\n`already: true`. `400 invalid` when the built-in client is off or\n`save_dir` is outside the allowed folders.",
+        "operationId": "add_torrent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/bulk": {
+      "post": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Pauses, resumes, stops, starts or removes many torrents (every torrent\nwhen `ids` is absent), or switches turtle mode.",
+        "operationId": "bulk_torrents",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/create": {
+      "post": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Creates a torrent from a file or folder and starts seeding it.",
+        "operationId": "create_torrent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedTorrent"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/events": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Streams live updates as Server-Sent Events.",
+        "description": "Event names: `snapshot` (every second: `{ session, torrents }`),\n`completed` and `error`. Each event's data is the JSON of a\n`TorrentEvent`.",
+        "operationId": "torrent_events",
+        "responses": {
+          "200": {
+            "description": "SSE stream of TorrentEvent",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentEvent"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/stats": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Session-wide numbers: speeds, listen port, counts per state.",
+        "operationId": "torrent_stats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStats"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/{id}": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "One torrent with its files, trackers and limits.",
+        "operationId": "get_torrent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Info hash, 40 hex characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Removes a torrent, and its files with `delete_files=true` (never the\nsource files of a torrent created here).",
+        "operationId": "remove_torrent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Info hash, 40 hex characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "delete_files",
+            "in": "query",
+            "description": "Also delete the downloaded files (default false). Ignored for\ntorrents created here: their files are the user's own sources.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Changes a torrent: run action, selected files, limits, seeding limits\nor queue position.",
+        "operationId": "update_torrent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Info hash, 40 hex characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/{id}/file": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "The `.torrent` file of a torrent that has its metadata.",
+        "operationId": "torrent_file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Info hash, 40 hex characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The .torrent file",
+            "content": {
+              "application/x-bittorrent": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/torrents/{id}/peers": {
+      "get": {
+        "tags": [
+          "torrents"
+        ],
+        "summary": "Connected peers of a torrent.",
+        "operationId": "torrent_peers",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Info hash, 40 hex characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PeerInfo"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1580,6 +2096,101 @@
           }
         }
       },
+      "AddRequest": {
+        "type": "object",
+        "description": "Body of `add`.",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "files": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "File indices to download; all when absent."
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "Add in the `paused` run mode."
+          },
+          "save_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder to save into; the default download folder when absent."
+          },
+          "source": {
+            "$ref": "#/components/schemas/AddSource"
+          }
+        }
+      },
+      "AddResponse": {
+        "type": "object",
+        "description": "Result of `add`.",
+        "required": [
+          "torrent",
+          "already"
+        ],
+        "properties": {
+          "already": {
+            "type": "boolean",
+            "description": "The info hash was already in the client; nothing was added."
+          },
+          "torrent": {
+            "$ref": "#/components/schemas/TorrentSummary"
+          }
+        }
+      },
+      "AddSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A `magnet:` link. `x.pe` peer addresses are used as initial peers.",
+            "required": [
+              "magnet"
+            ],
+            "properties": {
+              "magnet": {
+                "type": "string",
+                "description": "A `magnet:` link. `x.pe` peer addresses are used as initial peers."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A `.torrent` file, base64-encoded.",
+            "required": [
+              "torrent"
+            ],
+            "properties": {
+              "torrent": {
+                "type": "string",
+                "description": "A `.torrent` file, base64-encoded."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A result of a recent search, or a favourite.",
+            "required": [
+              "result_id"
+            ],
+            "properties": {
+              "result_id": {
+                "type": "string",
+                "description": "A result of a recent search, or a favourite."
+              }
+            }
+          }
+        ],
+        "description": "Where a torrent to add comes from."
+      },
       "ApiKeyInfo": {
         "type": "object",
         "required": [
@@ -1605,6 +2216,131 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "BulkAction": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "pause"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "resume"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "stop"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "start"
+            ]
+          },
+          {
+            "type": "string",
+            "enum": [
+              "force_start"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "remove"
+            ],
+            "properties": {
+              "remove": {
+                "type": "object",
+                "properties": {
+                  "delete_files": {
+                    "type": "boolean",
+                    "description": "Also delete the downloaded files. Ignored for torrents created\nhere: their files are the user's own sources."
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Turn turtle mode (alternative speed) on or off; `ids` is ignored.",
+            "required": [
+              "turtle"
+            ],
+            "properties": {
+              "turtle": {
+                "type": "boolean",
+                "description": "Turn turtle mode (alternative speed) on or off; `ids` is ignored."
+              }
+            }
+          }
+        ],
+        "description": "An action on many torrents."
+      },
+      "BulkFailure": {
+        "type": "object",
+        "description": "One failure of a bulk action.",
+        "required": [
+          "id",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "BulkRequest": {
+        "type": "object",
+        "description": "Body of `bulk`.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/BulkAction"
+          },
+          "ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Torrents to act on; every torrent when absent."
+          }
+        }
+      },
+      "BulkResult": {
+        "type": "object",
+        "description": "Result of `bulk`.",
+        "required": [
+          "ok",
+          "failed"
+        ],
+        "properties": {
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkFailure"
+            }
+          },
+          "ok": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1696,6 +2432,59 @@
           "name": {
             "type": "string",
             "description": "What the key is for, e.g. \"Phone\" or \"Sonarr\"."
+          }
+        }
+      },
+      "CreateRequest": {
+        "type": "object",
+        "description": "Body of `create`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "File or folder to share."
+          },
+          "piece_length": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "trackers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreatedTorrent": {
+        "type": "object",
+        "description": "Result of `create`.",
+        "required": [
+          "torrent",
+          "magnet",
+          "already"
+        ],
+        "properties": {
+          "already": {
+            "type": "boolean"
+          },
+          "magnet": {
+            "type": "string"
+          },
+          "torrent": {
+            "$ref": "#/components/schemas/TorrentSummary"
           }
         }
       },
@@ -2072,6 +2861,15 @@
           }
         }
       },
+      "KeepAwake": {
+        "type": "string",
+        "description": "When the device is kept awake.",
+        "enum": [
+          "off",
+          "downloading",
+          "active"
+        ]
+      },
       "MagnetSettings": {
         "type": "object",
         "properties": {
@@ -2215,6 +3013,69 @@
           }
         ],
         "description": "A newly created key. The key itself is shown only once."
+      },
+      "OnBattery": {
+        "type": "string",
+        "description": "What to do when the device runs on battery.",
+        "enum": [
+          "nothing",
+          "alt_speed",
+          "pause"
+        ]
+      },
+      "Origin": {
+        "type": "string",
+        "description": "Where a torrent came from (the `source` column).",
+        "enum": [
+          "magnet",
+          "torrent",
+          "result",
+          "created",
+          "watch"
+        ]
+      },
+      "PeerInfo": {
+        "type": "object",
+        "description": "One connected peer.",
+        "required": [
+          "addr",
+          "state",
+          "downloaded",
+          "uploaded"
+        ],
+        "properties": {
+          "addr": {
+            "type": "string"
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "conn_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`tcp`, `utp` or `socks`."
+          },
+          "downloaded": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes received from this peer in this session.",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string"
+          },
+          "uploaded": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes sent to this peer in this session.",
+            "minimum": 0
+          }
+        }
       },
       "PreviewDefinitionRequest": {
         "type": "object",
@@ -2531,6 +3392,29 @@
           }
         }
       },
+      "QueueMove": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/QueueStep"
+          },
+          {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        ],
+        "description": "A queue move: a step, or an absolute 0-based index (drag reorder)."
+      },
+      "QueueStep": {
+        "type": "string",
+        "description": "A relative queue move.",
+        "enum": [
+          "top",
+          "up",
+          "down",
+          "bottom"
+        ]
+      },
       "RefreshTrackersResponse": {
         "type": "object",
         "required": [
@@ -2628,6 +3512,26 @@
           "direct",
           "proxy",
           "tor"
+        ]
+      },
+      "RunMode": {
+        "type": "string",
+        "description": "How the user wants a torrent to run (plan §3.3).",
+        "enum": [
+          "auto",
+          "paused",
+          "stopped",
+          "forced"
+        ]
+      },
+      "ScheduleMode": {
+        "type": "string",
+        "description": "What the weekly schedule says now.",
+        "enum": [
+          "normal",
+          "alt",
+          "seed_only",
+          "off"
         ]
       },
       "SearchEvent": {
@@ -2951,6 +3855,29 @@
           }
         }
       },
+      "SeedLimits": {
+        "type": "object",
+        "description": "Per-torrent seeding limits. `None` uses the global setting.",
+        "properties": {
+          "minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "default": null,
+            "minimum": 0
+          },
+          "ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "default": null
+          }
+        }
+      },
       "Session": {
         "type": "object",
         "description": "Cookies from a browser check the user completed on the site.",
@@ -2999,6 +3926,73 @@
           },
           "value": {
             "type": "string"
+          }
+        }
+      },
+      "SessionStats": {
+        "type": "object",
+        "description": "Session-wide numbers.",
+        "required": [
+          "running",
+          "down_bps",
+          "up_bps",
+          "schedule_mode",
+          "turtle",
+          "on_battery",
+          "network_allowed",
+          "peers_connected",
+          "counts"
+        ],
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/StateCounts"
+          },
+          "dht_nodes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "down_bps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "listen_port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "network_allowed": {
+            "type": "boolean"
+          },
+          "on_battery": {
+            "type": "boolean"
+          },
+          "peers_connected": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "running": {
+            "type": "boolean",
+            "description": "The client is on and its session runs."
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ScheduleMode"
+          },
+          "turtle": {
+            "type": "boolean"
+          },
+          "up_bps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -3101,6 +4095,43 @@
               "save_history": true
             }
           },
+          "torrents": {
+            "$ref": "#/components/schemas/TorrentSettings",
+            "default": {
+              "alt_limits": {
+                "down_kib": 1024,
+                "up_kib": 256
+              },
+              "ask_on_add": false,
+              "blocklist_url": null,
+              "close_to_tray": true,
+              "dht": true,
+              "download_dir": null,
+              "enabled": true,
+              "keep_awake": "downloading",
+              "limits": {
+                "down_kib": null,
+                "up_kib": null
+              },
+              "listen_port": 0,
+              "lsd": true,
+              "max_active_downloads": 3,
+              "max_active_seeds": 5,
+              "notice_accepted": false,
+              "on_battery": "alt_speed",
+              "peer_limit_global": 1000,
+              "peer_limit_torrent": 200,
+              "proxy": null,
+              "schedule": null,
+              "seed_minutes": null,
+              "seed_ratio": 1.0,
+              "turtle": false,
+              "unmetered_only": true,
+              "upnp": true,
+              "utp": true,
+              "watch_dir": null
+            }
+          },
           "ui": {
             "$ref": "#/components/schemas/UiSettings",
             "default": {
@@ -3135,6 +4166,86 @@
           "size",
           "date"
         ]
+      },
+      "SpeedLimits": {
+        "type": "object",
+        "description": "Speed limits in KiB/s. `None` means unlimited.",
+        "properties": {
+          "down_kib": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "default": null,
+            "minimum": 0
+          },
+          "up_kib": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "default": null,
+            "minimum": 0
+          }
+        }
+      },
+      "StateCounts": {
+        "type": "object",
+        "description": "Torrents per state, for the filter tabs.",
+        "required": [
+          "all",
+          "downloading",
+          "seeding",
+          "queued",
+          "paused",
+          "stopped",
+          "finished",
+          "error"
+        ],
+        "properties": {
+          "all": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "downloading": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "error": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "finished": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "paused": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "seeding": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "stopped": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "StoredDefinition": {
         "type": "object",
@@ -3333,6 +4444,593 @@
           }
         }
       },
+      "TorrentAction": {
+        "type": "string",
+        "description": "Run-mode changes (plan §2: Pause ≠ Stop, Force start).",
+        "enum": [
+          "pause",
+          "resume",
+          "stop",
+          "start",
+          "force_start"
+        ]
+      },
+      "TorrentDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TorrentSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "files",
+              "trackers",
+              "limits",
+              "seed"
+            ],
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TorrentFile"
+                }
+              },
+              "limits": {
+                "$ref": "#/components/schemas/SpeedLimits",
+                "description": "Per-torrent speed limits in KiB/s. `None` is unlimited."
+              },
+              "magnet": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "peer_limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Own connection limit. `None` uses the global per-torrent limit.",
+                "minimum": 0
+              },
+              "result_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "seed": {
+                "$ref": "#/components/schemas/SeedLimits"
+              },
+              "seeding_since": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "trackers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Tracker URLs (librqbit reports no per-tracker status)."
+              }
+            }
+          }
+        ],
+        "description": "Everything about one torrent."
+      },
+      "TorrentEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Sent every second.",
+            "required": [
+              "session",
+              "torrents",
+              "type"
+            ],
+            "properties": {
+              "session": {
+                "$ref": "#/components/schemas/SessionStats"
+              },
+              "torrents": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TorrentSummary"
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "snapshot"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One live-update event (`subscribe`)."
+      },
+      "TorrentFile": {
+        "type": "object",
+        "description": "One file of a torrent.",
+        "required": [
+          "index",
+          "path",
+          "size",
+          "have",
+          "selected"
+        ],
+        "properties": {
+          "have": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "index": {
+            "type": "integer",
+            "description": "Index used by `files` in [`TorrentPatch`] and [`AddRequest`].",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Path inside the torrent, `/`-separated."
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "TorrentPatch": {
+        "type": "object",
+        "description": "Body of `update`. Every field is optional.",
+        "properties": {
+          "action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TorrentAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "files": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Selected file indices (at least one).",
+            "default": null
+          },
+          "limits": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpeedLimits",
+                "description": "Per-torrent speed limits; replaces both values."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "peer_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Own connection limit, 10–2000; 0 returns to the global default.",
+            "default": null,
+            "minimum": 0
+          },
+          "queue_pos": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QueueMove"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "seed": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SeedLimits",
+                "description": "Seeding limits; replaces both values."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        }
+      },
+      "TorrentSettings": {
+        "type": "object",
+        "description": "Settings of the built-in torrent client.",
+        "properties": {
+          "alt_limits": {
+            "$ref": "#/components/schemas/SpeedLimits",
+            "description": "Limits used by turtle mode and the schedule's `a` cells.",
+            "default": {
+              "down_kib": 1024,
+              "up_kib": 256
+            }
+          },
+          "ask_on_add": {
+            "type": "boolean",
+            "description": "Ask where to save each time a torrent is added.",
+            "default": false
+          },
+          "blocklist_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IP blocklist to download and apply.",
+            "default": null
+          },
+          "close_to_tray": {
+            "type": "boolean",
+            "description": "Desktop: closing the window keeps the client running in the tray.",
+            "default": true
+          },
+          "dht": {
+            "type": "boolean",
+            "default": true
+          },
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where downloads are saved. `None` means the OS downloads folder.\nSeparate from `downloads.torrent_dir`, which holds `.torrent` files.",
+            "default": null
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch for the built-in client.",
+            "default": true
+          },
+          "keep_awake": {
+            "$ref": "#/components/schemas/KeepAwake",
+            "default": "downloading"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SpeedLimits",
+            "description": "Normal speed limits.",
+            "default": {
+              "down_kib": null,
+              "up_kib": null
+            }
+          },
+          "listen_port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Listen port. 0 means pick one on first start and save it.",
+            "default": 0,
+            "minimum": 0
+          },
+          "lsd": {
+            "type": "boolean",
+            "default": true
+          },
+          "max_active_downloads": {
+            "type": "integer",
+            "format": "int32",
+            "default": 3,
+            "minimum": 0
+          },
+          "max_active_seeds": {
+            "type": "integer",
+            "format": "int32",
+            "default": 5,
+            "minimum": 0
+          },
+          "notice_accepted": {
+            "type": "boolean",
+            "description": "The user has accepted the first-use notice.",
+            "default": false
+          },
+          "on_battery": {
+            "$ref": "#/components/schemas/OnBattery",
+            "default": "alt_speed"
+          },
+          "peer_limit_global": {
+            "type": "integer",
+            "format": "int32",
+            "default": 1000,
+            "minimum": 0
+          },
+          "peer_limit_torrent": {
+            "type": "integer",
+            "format": "int32",
+            "default": 200,
+            "minimum": 0
+          },
+          "proxy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SOCKS5 proxy for torrent traffic.",
+            "default": null
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WeekGrid",
+                "description": "Weekly schedule of speed modes."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "seed_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Stop seeding after this many minutes. `None` means no time limit.",
+            "default": null,
+            "minimum": 0
+          },
+          "seed_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Stop seeding at this share ratio. `None` seeds forever.",
+            "default": 1.0
+          },
+          "turtle": {
+            "type": "boolean",
+            "description": "Turtle mode: apply `alt_limits` now.",
+            "default": false
+          },
+          "unmetered_only": {
+            "type": "boolean",
+            "description": "Android: only download on unmetered networks.",
+            "default": true
+          },
+          "upnp": {
+            "type": "boolean",
+            "default": true
+          },
+          "utp": {
+            "type": "boolean",
+            "default": true
+          },
+          "watch_dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder watched for `.torrent` files to add.",
+            "default": null
+          }
+        }
+      },
+      "TorrentState": {
+        "type": "string",
+        "description": "What a torrent is doing now.",
+        "enum": [
+          "metadata",
+          "checking",
+          "downloading",
+          "seeding",
+          "queued",
+          "paused",
+          "stopped",
+          "finished",
+          "done",
+          "scheduled_off",
+          "scheduled_seed_only",
+          "on_battery",
+          "waiting_for_network",
+          "error"
+        ]
+      },
+      "TorrentSummary": {
+        "type": "object",
+        "description": "One row of the torrent list.",
+        "required": [
+          "id",
+          "name",
+          "state",
+          "run_mode",
+          "source",
+          "progress",
+          "size",
+          "have",
+          "downloaded_total",
+          "uploaded_total",
+          "ratio",
+          "down_bps",
+          "up_bps",
+          "peers",
+          "seeds",
+          "queue_pos",
+          "save_dir",
+          "added_at",
+          "done"
+        ],
+        "properties": {
+          "added_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "completed_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "The seed limit was reached."
+          },
+          "down_bps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "downloaded_total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes downloaded over all runs.",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eta_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Seconds to completion at the current speed.",
+            "minimum": 0
+          },
+          "have": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes of the selected files we have.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "Info hash, 40 lowercase hex characters."
+          },
+          "name": {
+            "type": "string"
+          },
+          "peers": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Connected peers.",
+            "minimum": 0
+          },
+          "progress": {
+            "type": "number",
+            "format": "double",
+            "description": "0.0–1.0 of the selected files."
+          },
+          "queue_pos": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ratio": {
+            "type": "number",
+            "format": "double"
+          },
+          "run_mode": {
+            "$ref": "#/components/schemas/RunMode"
+          },
+          "save_dir": {
+            "type": "string"
+          },
+          "seeds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Connected peers that have the whole torrent.",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes of the selected files (0 until the metadata is known).",
+            "minimum": 0
+          },
+          "source": {
+            "$ref": "#/components/schemas/Origin"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TorrentState"
+          },
+          "up_bps": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "uploaded_total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes uploaded over all runs.",
+            "minimum": 0
+          }
+        }
+      },
       "UiSettings": {
         "type": "object",
         "properties": {
@@ -3356,6 +5054,10 @@
             "default": true
           }
         }
+      },
+      "WeekGrid": {
+        "type": "string",
+        "description": "A week of speed modes, one cell per hour: 168 characters, Monday 00:00\nfirst. `n` normal, `a` alternative limits, `s` seed only, `o` off."
       },
       "YamlText": {
         "type": "object",
@@ -3405,6 +5107,10 @@
     },
     {
       "name": "history"
+    },
+    {
+      "name": "torrents",
+      "description": "The built-in torrent client"
     },
     {
       "name": "system"

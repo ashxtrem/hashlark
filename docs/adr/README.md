@@ -11,14 +11,15 @@ Each ADR records one decision: the context, what we chose and what follows from 
 | [0005](0005-provider-model.md) | Native + declarative definitions + Torznab providers; no script plugins | Accepted |
 | [0006](0006-sqlite-storage.md) | SQLite via sqlx for storage | Accepted |
 | [0007](0007-legal-default-providers.md) | Ship only legal sources as default providers | Accepted |
-| [0008](0008-os-download-handoff.md) | Hand downloads to the OS handler only | Accepted |
+| [0008](0008-os-download-handoff.md) | Hand downloads to the OS handler only | Accepted, amended by [0017](0017-built-in-torrent-client.md) |
 | [0009](0009-headless-server-v1.md) | Ship headless server mode in v1.0 | Accepted |
-| [0010](0010-no-telemetry.md) | No telemetry | Accepted |
+| [0010](0010-no-telemetry.md) | No telemetry | Accepted, amended by [0017](0017-built-in-torrent-client.md) |
 | [0011](0011-licence-gpl-3.md) | Licence: GPL-3.0-or-later | Accepted |
 | [0012](0012-own-doh-resolver.md) | Our own DNS-over-HTTPS resolver | Accepted |
 | [0013](0013-embedded-tor-arti.md) | Built-in Tor with Arti behind a local SOCKS bridge | Accepted |
 | [0014](0014-android-tls-roots.md) | Bundled root certificates for TLS on Android | Accepted |
 | [0015](0015-ffi-json-boundary.md) | The FFI boundary carries the HTTP API's JSON | Accepted |
 | [0016](0016-lan-device-handoff.md) | Send results to other devices over the local network | Accepted |
+| [0017](0017-built-in-torrent-client.md) | Built-in torrent client (`librqbit`), on by default; amends 0008 and 0010 | Accepted |
 
 New ADRs: copy [template.md](template.md) and use the next number.

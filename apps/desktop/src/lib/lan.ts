@@ -63,6 +63,8 @@ export function formatPin(pin: string): string {
 export function receivedToast(event: LanReceived): { kind: ToastKind; message: string } | null {
   const what = event.title ? `“${event.title}”` : 'a link';
   switch (event.outcome.status) {
+    case 'added':
+      return { kind: 'success', message: `Downloading ${what} from ${event.from}` };
     case 'opened':
       return { kind: 'success', message: `Opened ${what} from ${event.from}` };
     case 'no_handler':

@@ -1,6 +1,6 @@
 # 0010. No telemetry
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0017](0017-built-in-torrent-client.md)
 - **Date:** 2026-09-28
 
 ## Context
@@ -14,7 +14,8 @@ Provider-health telemetry could help maintain definitions, but it conflicts with
 1. searches and resolves sent to providers the user enabled;
 2. definition-repo sync;
 3. tracker-list refresh (if configured);
-4. the update check against GitHub Releases, which users can turn off.
+4. the update check against GitHub Releases, which users can turn off;
+5. torrent traffic of the built-in client (ADR 0017): peers, trackers, DHT and UPnP. It goes direct, never through Tor or the search proxy.
 
 ## Consequences
 

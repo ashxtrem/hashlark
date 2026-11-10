@@ -2,7 +2,12 @@
 
 package io.github.ashxtrem.hashlark.ui.search
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.draw.clip
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -53,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import io.github.ashxtrem.hashlark.core.Format
 import io.github.ashxtrem.hashlark.core.MergedResult
 import io.github.ashxtrem.hashlark.ui.ResultActions
+import io.github.ashxtrem.hashlark.ui.downloads.DownloadsLogic
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -63,7 +69,7 @@ private const val NOT_REPORTED = "Not reported"
  * Everything known about one result, with the actions that apply to it. [onBack] is set when the
  * details replace the list (a Back arrow) or sit beside it ([asPane]: a Close button).
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ResultDetails(
     result: MergedResult,
@@ -92,6 +98,8 @@ fun ResultDetails(
                     Text("Details", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            val settings by actions.settings.collectAsStateWithLifecycle()
+            val builtInClient = settings?.torrents?.enabled == true
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = if (onBack == null) 16.dp else 4.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -104,14 +112,44 @@ fun ResultDetails(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    val inClient by actions.inDownloads.collectAsStateWithLifecycle()
+                    if (builtInClient && DownloadsLogic.inClient(p.infoHash, inClient)) InDownloadsBadge()
                 }
 
-                Button(
-                    onClick = { actions.open(result) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = null)
-                    Text("Open in client", Modifier.padding(start = 8.dp))
+                if (builtInClient) {
+                    // The built-in client: a tap downloads at once, a long-press opens the Add sheet.
+                    Surface(
+                        shape = ButtonDefaults.shape,
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .clip(ButtonDefaults.shape)
+                            .combinedClickable(
+                                role = Role.Button,
+                                onClick = { actions.open(result) },
+                                onLongClickLabel = "Download with options",
+                                onLongClick = { actions.open(result, withOptions = true) },
+                            ),
+                    ) {
+                        Row(
+                            Modifier.heightIn(min = 52.dp).padding(horizontal = 24.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null)
+                            Text("Download", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { actions.open(result) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    ) {
+                        Icon(Icons.Filled.Download, contentDescription = null)
+                        Text("Open in client", Modifier.padding(start = 8.dp))
+                    }
                 }
 
                 // Only what this result supports: a result without a magnet has no copy or share for it.

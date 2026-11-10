@@ -52,9 +52,87 @@ export async function revealPath(path: string): Promise<void> {
   if (isTauri()) await invoke('reveal_path', { path });
 }
 
+/** Who opens `magnet:` links. */
+export interface MagnetHandlerStatus {
+  /** Some app is registered. */
+  registered: boolean;
+  /** That app is Hashlark. */
+  is_self: boolean;
+}
+
 /** Whether a torrent client is registered for magnet links (`null` if unknown). */
-export async function magnetHandlerStatus(): Promise<boolean | null> {
-  return isTauri() ? invoke<boolean | null>('magnet_handler_status') : null;
+export async function magnetHandlerStatus(): Promise<MagnetHandlerStatus | null> {
+  return isTauri() ? invoke<MagnetHandlerStatus | null>('magnet_handler_status') : null;
+}
+
+/**
+ * Makes Hashlark the app for magnet links, or stops being it (Windows and
+ * Linux; on macOS it rejects with a hint to use System Settings). Returns
+ * the new status.
+ */
+export async function magnetHandlerRegister(register: boolean): Promise<MagnetHandlerStatus | null> {
+  return invoke<MagnetHandlerStatus | null>('magnet_handler_register', { register });
+}
+
+// ----- Opened with Hashlark (desktop only) -----------------------------------
+
+/**
+ * A magnet or `.torrent` file the OS opened with Hashlark. With
+ * `client_on` false, show the no-torrent-client dialog with "Turn on the
+ * built-in client" rather than handing it back to the OS.
+ */
+export type TorrentOpen = ({ magnet: string } | { path: string }) & { client_on: boolean };
+
+/**
+ * Calls `handler` for every magnet or `.torrent` opened with Hashlark,
+ * including ones from before the UI was ready. Returns the unsubscribe
+ * function.
+ */
+export async function onTorrentOpen(handler: (open: TorrentOpen) => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const unlisten = await listenTauri<TorrentOpen>('torrent-open', handler);
+  for (const open of await invoke<TorrentOpen[]>('take_torrent_opens')) handler(open);
+  return unlisten;
+}
+
+/** Reads a `.torrent` file the OS opened with Hashlark (desktop only; at most 10 MiB). */
+export async function readTorrentFile(path: string): Promise<Uint8Array> {
+  return new Uint8Array(await invoke<ArrayBuffer>('read_torrent_file', { path }));
+}
+
+// ----- When all done (desktop only) -------------------------------------------
+
+export type WhenDoneAction = 'nothing' | 'quit' | 'sleep' | 'hibernate' | 'shutdown';
+
+export interface WhenDoneStatus {
+  action: WhenDoneAction;
+  /** The countdown runs. */
+  counting: boolean;
+  /** Actions this OS supports (no hibernate on macOS). */
+  actions: WhenDoneAction[];
+}
+
+/** Payload of `when-done-countdown`: show it, with Cancel. */
+export interface WhenDoneCountdown {
+  action: WhenDoneAction;
+  seconds: number;
+}
+
+export const whenDoneApi = {
+  status: () => invoke<WhenDoneStatus>('when_done'),
+  set: (action: WhenDoneAction) => invoke<WhenDoneStatus>('set_when_done', { action }),
+  cancel: () => invoke<WhenDoneStatus>('cancel_when_done'),
+  /** The countdown started. */
+  onCountdown: (handler: (c: WhenDoneCountdown) => void) =>
+    listenTauri<WhenDoneCountdown>('when-done-countdown', handler),
+  /** The choice changed (also from the tray), fired or was cancelled. */
+  onChanged: (handler: (s: WhenDoneStatus) => void) => listenTauri<WhenDoneStatus>('when-done-changed', handler),
+};
+
+/** The window was hidden to the tray; `first` is true the first time ever. */
+export async function onClosedToTray(handler: (e: { first: boolean }) => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  return listenTauri<{ first: boolean }>('closed-to-tray', handler);
 }
 
 /** Lets the user pick a folder (desktop only). */
@@ -62,6 +140,14 @@ export async function pickFolder(): Promise<string | null> {
   if (!isTauri()) return null;
   const { open } = await import('@tauri-apps/plugin-dialog');
   const picked = await open({ directory: true, multiple: false });
+  return typeof picked === 'string' ? picked : null;
+}
+
+/** Lets the user pick a file (desktop only). */
+export async function pickFile(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const picked = await open({ directory: false, multiple: false });
   return typeof picked === 'string' ? picked : null;
 }
 
@@ -115,12 +201,19 @@ export interface LanStatus {
   error: string | null;
 }
 
-/** A link a paired device sent, after it was handed to the torrent client. */
+/**
+ * A link a paired device sent, after it was added to the built-in client
+ * (`added`) or handed to the external torrent client.
+ */
 export interface LanReceived {
   from: string;
   title: string;
   url: string;
-  outcome: { status: 'opened' } | { status: 'no_handler' } | { status: 'failed'; message: string };
+  outcome:
+    | { status: 'added' }
+    | { status: 'opened' }
+    | { status: 'no_handler' }
+    | { status: 'failed'; message: string };
 }
 
 export const lanApi = {

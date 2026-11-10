@@ -36,6 +36,13 @@ describe('receivedToast', () => {
     });
   });
 
+  it('confirms a link added to the built-in client', () => {
+    expect(receivedToast({ ...base, outcome: { status: 'added' } })).toEqual({
+      kind: 'success',
+      message: 'Downloading “Big Buck Bunny” from Pixel 9',
+    });
+  });
+
   it('leaves a missing torrent client to the dialog', () => {
     expect(receivedToast({ ...base, outcome: { status: 'no_handler' } })).toBeNull();
   });

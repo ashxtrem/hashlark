@@ -4,6 +4,7 @@ package io.github.ashxtrem.hashlark.ui.library
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +22,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +62,8 @@ fun FavoritesScreen(
     library: LibraryViewModel,
     actions: ResultActions,
     modifier: Modifier = Modifier,
+    /** The Favourites | History tab row, which replaces the title on a bottom-bar layout. */
+    tabs: (@Composable () -> Unit)? = null,
 ) {
     val favorites by library.favorites.collectAsStateWithLifecycle()
     val names by app.providerNames.collectAsStateWithLifecycle()
@@ -68,7 +73,7 @@ fun FavoritesScreen(
     LaunchedEffect(Unit) { library.refreshFavorites() }
 
     Column(modifier.fillMaxSize()) {
-        ScreenTitle("Favourites")
+        if (tabs != null) tabs() else ScreenTitle("Favourites")
         val list = favorites
         when {
             list == null -> LoadingBox()
@@ -120,6 +125,8 @@ fun HistoryScreen(
     library: LibraryViewModel,
     onRun: (SearchQuery) -> Unit,
     modifier: Modifier = Modifier,
+    /** The Favourites | History tab row, which replaces the title on a bottom-bar layout. */
+    tabs: (@Composable () -> Unit)? = null,
 ) {
     val history by library.history.collectAsStateWithLifecycle()
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
@@ -127,10 +134,18 @@ fun HistoryScreen(
     LaunchedEffect(Unit) { library.refreshHistory() }
 
     Column(modifier.fillMaxSize()) {
-        ScreenTitle("History") {
+        val clear: @Composable () -> Unit = {
             if (!history.isNullOrEmpty()) {
                 IconButton(onClick = { confirmClear = true }) { Icon(Icons.Filled.DeleteSweep, contentDescription = "Clear history") }
             }
+        }
+        if (tabs != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { tabs() }
+                clear()
+            }
+        } else {
+            ScreenTitle("History") { clear() }
         }
         val entries = history
         when {
@@ -171,6 +186,18 @@ fun HistoryScreen(
             },
             onDismiss = { confirmClear = false },
         )
+    }
+}
+
+/**
+ * Favourites and History as two tabs of one screen: on a bottom-bar layout, where History has no
+ * item of its own, so shortcuts and intents that open History still land on it.
+ */
+@Composable
+fun LibraryTabs(history: Boolean, onPick: (history: Boolean) -> Unit) {
+    PrimaryTabRow(selectedTabIndex = if (history) 1 else 0) {
+        Tab(selected = !history, onClick = { onPick(false) }, text = { Text("Favourites") })
+        Tab(selected = history, onClick = { onPick(true) }, text = { Text("History") })
     }
 }
 

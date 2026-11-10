@@ -20,10 +20,16 @@ anyhow = "1.0.104"
 hashlark-core = { version = "0.1.2", path = "../../../crates/hashlark-core", features = ["tor"] }
 hashlark-lan = { version = "0.1.2", path = "../../../crates/hashlark-lan" }
 hashlark-server = { version = "0.1.1", path = "../../../crates/hashlark-server" }
+hashlark-torrent = { version = "0.1.2", path = "../../../crates/hashlark-torrent" }
+keepawake = "0.6.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-tauri = { version = "2.12.0", features = [] }
+starship-battery = "0.12.0"
+system_shutdown = "4.1.0"
+tauri = { version = "2.12.0", features = ["tray-icon"] }
+tauri-plugin-deep-link = "2.6.3"
 tauri-plugin-dialog = "2.8.0"
+tauri-plugin-notification = "2.8.0"
 tauri-plugin-opener = "2.6.0"
 tauri-plugin-process = "2.4.0"
 tauri-plugin-single-instance = "2.5.0"

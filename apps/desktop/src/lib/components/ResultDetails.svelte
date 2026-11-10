@@ -1,11 +1,12 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <script lang="ts">
   import { Copy, Download, ExternalLink, FileDown, Send, Star, X } from '@lucide/svelte';
-  import { copyMagnet, download, linkKinds, saveTorrent, sendToDevice } from '$lib/actions';
+  import { copyMagnet, download, inDownloads, linkKinds, openInClient, saveTorrent, sendToDevice } from '$lib/actions';
   import { bytes, CATEGORY_LABELS, count, dateTime } from '$lib/format';
   import { copyText, isTauri, openExternal } from '$lib/platform';
   import { favorites } from '$lib/state/favorites.svelte';
   import { toasts } from '$lib/state/toasts.svelte';
+  import { torrents } from '$lib/state/torrents.svelte';
   import { ui } from '$lib/state/ui.svelte';
 
   interface Props {
@@ -50,8 +51,18 @@
     </header>
 
     <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4 text-sm">
+      {#if inDownloads(result)}
+        <p class="rounded-lg bg-accent-soft px-3 py-2 text-accent">This torrent is in your downloads.</p>
+      {/if}
       <div class="flex flex-wrap gap-2">
-        <button class="btn-primary" onclick={() => download(result)}><Download size={16} /> Open in client</button>
+        {#if torrents.enabled}
+          <button class="btn-primary" title="Shift+click to choose files and folder" onclick={(e) => download(result, { dialog: e.shiftKey })}>
+            <Download size={16} /> Download
+          </button>
+          <button class="btn-outline" onclick={() => openInClient(result)}><ExternalLink size={16} /> Open in client</button>
+        {:else}
+          <button class="btn-primary" onclick={() => download(result)}><Download size={16} /> Open in client</button>
+        {/if}
         <button class="btn-outline" disabled={!links.magnet} onclick={() => copyMagnet(result)}><Copy size={16} /> Copy magnet</button>
         {#if isTauri()}
           <button class="btn-outline" disabled={!links.magnet} onclick={() => sendToDevice(result)}><Send size={16} /> Send to device</button>
