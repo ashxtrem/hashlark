@@ -20,6 +20,7 @@ use hashlark_server::{LocalServer, serve_local};
 use hashlark_torrent::paths::{desktop_download_dir, server_download_dir};
 use hashlark_torrent::{PathPolicy, ServiceOptions, TorrentService};
 use tauri::{AppHandle, Manager, RunEvent};
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tracing_subscriber::EnvFilter;
 
@@ -41,6 +42,23 @@ pub fn show_main_window(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
+}
+
+/// Brings the window forward for a `hashlark://` link: the one this launch
+/// was started with, and later ones. The UI reads the link and acts on it.
+fn watch_links(app: &AppHandle) {
+    let deep_link = app.deep_link();
+    // Installers register the scheme. A dev build registers itself, and so
+    // does every Linux build, for AppImages (as the plugin's guide says).
+    #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+    if let Err(err) = deep_link.register_all() {
+        tracing::warn!(%err, "could not register the hashlark: link scheme");
+    }
+    if deep_link.get_current().ok().flatten().is_some() {
+        show_main_window(app);
+    }
+    let handle = app.clone();
+    deep_link.on_open_url(move |_| show_main_window(&handle));
 }
 
 async fn start_backend() -> anyhow::Result<Backend> {
@@ -91,13 +109,16 @@ fn main() {
     tauri::Builder::default()
         // A second launch focuses the running window instead of starting
         // another engine on the same database, and passes on the magnet or
-        // `.torrent` it was started with.
+        // `.torrent` it was started with. A `hashlark://` link goes to the
+        // deep-link plugin first (the `deep-link` feature), which tells the UI.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             show_main_window(app);
             open::handle_args(app, &args, std::path::Path::new(&cwd));
         }))
-        // Only for (un)registering as the `magnet:` handler on request: no
-        // schemes in the config, so installers don't take over magnet links.
+        // `hashlark://` links (the scheme in `tauri.conf.json`; the UI reads
+        // them), and (un)registering as the `magnet:` handler on request:
+        // `magnet` is not in the config, so installers don't take over
+        // magnet links.
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -121,6 +142,7 @@ fn main() {
                         tracing::error!(%err, "could not create the tray icon");
                     }
                     power::spawn(app.handle(), torrents);
+                    watch_links(app.handle());
                     // A magnet or `.torrent` this first launch was opened with.
                     let args: Vec<String> = std::env::args().collect();
                     let cwd = std::env::current_dir().unwrap_or_default();

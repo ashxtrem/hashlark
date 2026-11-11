@@ -4,6 +4,10 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+### Added
+
+- **Search links on desktop.** Another app or a web page can start a search by opening `hashlark://search?q=<text>&cat=<categories>&imdb=<IMDb id>`. The link starts Hashlark, or goes to the running app, brings the window to the front and runs the search. The installers register the `hashlark:` link scheme. See [Starting a search from another app](docs/user-guide.md#starting-a-search-from-another-app).
+
 ## [0.2.1] - 2026-11-10
 
 ### Fixed

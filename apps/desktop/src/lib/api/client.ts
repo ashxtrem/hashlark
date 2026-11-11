@@ -124,6 +124,8 @@ export interface SearchParams {
   q: string;
   categories?: Category[];
   providers?: string[];
+  /** IMDb id (`tt1234567`), for providers that can search by it. */
+  imdb?: string;
   page?: number;
   sort?: SortOrder;
 }
@@ -155,6 +157,7 @@ export class Api {
     const qs = new URLSearchParams({ q: params.q });
     if (params.categories?.length) qs.set('cat', params.categories.join(','));
     if (params.providers?.length) qs.set('providers', params.providers.join(','));
+    if (params.imdb) qs.set('imdb', params.imdb);
     if (params.page && params.page > 1) qs.set('page', String(params.page));
     if (params.sort) qs.set('sort', params.sort);
 

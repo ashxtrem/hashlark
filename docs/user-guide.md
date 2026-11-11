@@ -33,6 +33,27 @@ On each result:
 
 Click a row for details: infohash, publish date, every site that has it, and a link to the site's page.
 
+### Starting a search from another app
+
+On desktop, another app or a web page can start a search by opening a link:
+
+```
+hashlark://search?q=<text>&cat=<categories>&imdb=<IMDb id>
+```
+
+| Parameter | Meaning |
+|---|---|
+| `q` | The text to search for, URL-encoded (`%20` or `+` for a space). At most 200 characters are used. Without `q` the link only opens Hashlark. |
+| `cat` | Optional. One or more of `movies`, `tv`, `music`, `books`, `software`, `games`, `anime`, `other`, separated by commas (`cat=movies,tv`). Names Hashlark doesn't know are ignored. |
+| `imdb` | Optional. An IMDb id such as `tt0133093`. Providers that can search by IMDb id use it for a more exact match. |
+
+For example, `hashlark://search?q=the+matrix&cat=movies&imdb=tt0133093`.
+
+- The link starts Hashlark if it isn't running, and otherwise goes to the running app. The window comes to the front and the search runs as if you had typed it.
+- Hashlark only searches. It reads nothing else from the link, and a link can't add a provider, start a download or open a page.
+- The installer sets this up. On Windows, other apps can tell that Hashlark is installed by the registry key `HKEY_CLASSES_ROOT\hashlark\shell\open\command`, and can open a link with `start "" "hashlark://search?q=..."`.
+- On Android, `hashlark://search?q=...` starts a search too. `cat` and `imdb` are not read there.
+
 ## Downloading
 
 Hashlark's built-in torrent client downloads and seeds torrents on your computer, on the headless server and on Android. It's on by default. To use your own torrent client instead, turn off **Use the built-in torrent client** under **Settings → Torrent client**. Results then open in your own client, as they did before.

@@ -42,11 +42,24 @@ pub struct TorrentOpen {
 
 /// Picks magnets and `.torrent` paths out of a command line. `args[0]` is
 /// the program; relative paths are resolved against `cwd`.
+///
+/// A command line with a `hashlark:` link gives nothing: the UI handles the
+/// link, and whatever a crafted link brought along is not opened.
 pub fn open_args(args: &[String], cwd: &Path) -> Vec<OpenTarget> {
+    if args.iter().skip(1).any(|arg| is_app_link(arg)) {
+        return Vec::new();
+    }
     args.iter()
         .skip(1)
         .filter_map(|arg| parse_arg(arg, cwd))
         .collect()
+}
+
+/// Whether `arg` is a link with the app's own scheme (`hashlark://search?...`).
+fn is_app_link(arg: &str) -> bool {
+    arg.trim()
+        .get(..9)
+        .is_some_and(|s| s.eq_ignore_ascii_case("hashlark:"))
 }
 
 fn parse_arg(arg: &str, cwd: &Path) -> Option<OpenTarget> {
@@ -246,6 +259,16 @@ mod tests {
         assert!(open_args(&args(&["--flag", "notes.txt", "https://x.org", ""]), &cwd()).is_empty());
         // The program itself is never taken, even if it looked like a torrent.
         assert!(open_args(&["x.torrent".to_owned()], &cwd()).is_empty());
+    }
+
+    #[test]
+    fn takes_nothing_from_a_command_line_with_an_app_link() {
+        // Without the check this one would pass for a `.torrent` path.
+        assert!(open_args(&args(&["hashlark://search?q=debian.torrent"]), &cwd()).is_empty());
+        assert!(open_args(&args(&["HASHLARK://search?q=x"]), &cwd()).is_empty());
+        // A link with a quote in it can split into more arguments.
+        assert!(open_args(&args(&["hashlark://search?q=a", "magnet:?xt=1"]), &cwd()).is_empty());
+        assert!(open_args(&args(&["magnet:?xt=1", "hashlark://search?q=a"]), &cwd()).is_empty());
     }
 
     #[test]

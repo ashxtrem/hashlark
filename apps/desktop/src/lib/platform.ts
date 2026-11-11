@@ -100,6 +100,19 @@ export async function readTorrentFile(path: string): Promise<Uint8Array> {
   return new Uint8Array(await invoke<ArrayBuffer>('read_torrent_file', { path }));
 }
 
+/**
+ * Calls `handler` with every `hashlark://` link the OS opened Hashlark with:
+ * the one that started the app, then later ones (desktop only). The link is
+ * untrusted text. Returns the unsubscribe function.
+ */
+export async function onLinkOpen(handler: (url: string) => void): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { getCurrent, onOpenUrl } = await import('@tauri-apps/plugin-deep-link');
+  const unlisten = await onOpenUrl((urls) => urls.forEach(handler));
+  for (const url of (await getCurrent()) ?? []) handler(url);
+  return unlisten;
+}
+
 // ----- When all done (desktop only) -------------------------------------------
 
 export type WhenDoneAction = 'nothing' | 'quit' | 'sleep' | 'hibernate' | 'shutdown';
