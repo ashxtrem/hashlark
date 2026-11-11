@@ -17,10 +17,10 @@ tauri-build = { version = "2.7.0", features = [] }
 
 [dependencies]
 anyhow = "1.0.104"
-hashlark-core = { version = "0.2.1", path = "../../../crates/hashlark-core", features = ["tor"] }
-hashlark-lan = { version = "0.2.1", path = "../../../crates/hashlark-lan" }
-hashlark-server = { version = "0.2.1", path = "../../../crates/hashlark-server" }
-hashlark-torrent = { version = "0.2.1", path = "../../../crates/hashlark-torrent" }
+hashlark-core = { version = "0.3.0", path = "../../../crates/hashlark-core", features = ["tor"] }
+hashlark-lan = { version = "0.3.0", path = "../../../crates/hashlark-lan" }
+hashlark-server = { version = "0.3.0", path = "../../../crates/hashlark-server" }
+hashlark-torrent = { version = "0.3.0", path = "../../../crates/hashlark-torrent" }
 keepawake = "0.6.1"
 # Only to pick the TLS crypto provider at startup (see `main`).
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs"] }
