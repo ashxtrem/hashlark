@@ -3,7 +3,9 @@
 <!-- Merged into the macOS bundle's Info.plist by Tauri. Lists the magnet:
      scheme so the user can pick Hashlark as the app for magnet links. Kept
      out of the deep-link plugin config so the Windows and Linux installers
-     don't take over magnet links; there, Settings registers on request. -->
+     don't take over magnet links; there, Settings registers on request.
+     This list replaces the one Tauri writes from the deep-link plugin config,
+     so the app's own hashlark: scheme is repeated here. -->
 <plist version="1.0">
 <dict>
   <key>CFBundleURLTypes</key>
@@ -14,6 +16,14 @@
       <key>CFBundleURLSchemes</key>
       <array>
         <string>magnet</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Hashlark link</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>hashlark</string>
       </array>
     </dict>
   </array>

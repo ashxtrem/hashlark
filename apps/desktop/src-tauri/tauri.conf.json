@@ -73,6 +73,11 @@
     "createUpdaterArtifacts": true
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["hashlark"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBNjQ2NDc4MEY3RjlDQzMKUldURG5IOFBlR1JrbXY0Sm9QNnF1Wi9vaENMU0I3ZjZEZk4yR1pMTUdxUmZUWUhJSTRIRXkyOHgK",
       "endpoints": [

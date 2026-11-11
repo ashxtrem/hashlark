@@ -2,6 +2,8 @@
 <script lang="ts">
   import '../app.css';
   import { onMount, untrack, type Snippet } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { LoaderCircle, TriangleAlert } from '@lucide/svelte';
   import AddTorrentDialog from '$components/AddTorrentDialog.svelte';
   import ChallengeDialog from '$components/ChallengeDialog.svelte';
@@ -16,10 +18,13 @@
   import UpdateBanner from '$components/UpdateBanner.svelte';
   import WelcomeDialog from '$components/WelcomeDialog.svelte';
   import WhenDoneDialog from '$components/WhenDoneDialog.svelte';
+  import { onLinkOpen } from '$lib/platform';
+  import { parseSearchLink } from '$lib/searchLink';
   import { app } from '$lib/state/app.svelte';
   import { favorites } from '$lib/state/favorites.svelte';
   import { lan } from '$lib/state/lan.svelte';
   import { providers } from '$lib/state/providers.svelte';
+  import { search } from '$lib/state/search.svelte';
   import { torrents } from '$lib/state/torrents.svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -35,8 +40,24 @@
     await app.connect();
     if (app.connection === 'ready') {
       await Promise.all([providers.load(), favorites.load(), lan.listen()]);
+      await onLinkOpen(openLink);
     }
   });
+
+  /**
+   * Runs the search of a `hashlark://search` link, like typing it on the
+   * search page. Nothing else in the link is used. A link without text only
+   * brings the window forward, which the Rust side does.
+   */
+  function openLink(url: string) {
+    const link = parseSearchLink(url);
+    if (!link?.q) return;
+    search.open(link);
+    const qs = new URLSearchParams({ q: link.q });
+    if (link.categories.length) qs.set('cat', link.categories.join(','));
+    void goto(`/?${qs}`, { replaceState: page.url.pathname === '/', keepFocus: true, noScroll: true });
+    void search.run(app.client);
+  }
 
   const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false;
 

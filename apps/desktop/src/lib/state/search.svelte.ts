@@ -2,6 +2,7 @@
 
 import { SvelteMap } from 'svelte/reactivity';
 import type { Api, Category, ErrorKind, MergedResult, SortOrder } from '$lib/api/client';
+import type { SearchLink } from '$lib/searchLink';
 import { sortResults, type SortDir } from '$lib/sort';
 import { errorMessage } from './toasts.svelte';
 
@@ -50,6 +51,15 @@ class SearchSession {
   }
 
   private abort: AbortController | null = null;
+  /** IMDb id a search link came with. It goes with that link's text only. */
+  private imdb: { text: string; id: string } | null = null;
+
+  /** Fills in the search of a `hashlark://search` link. Call `run` next. */
+  open(link: SearchLink): void {
+    this.text = link.q;
+    this.categories = link.categories;
+    this.imdb = link.imdb ? { text: link.q, id: link.imdb } : null;
+  }
 
   toggleCategory(category: Category): void {
     this.categories = this.categories.includes(category)
@@ -71,6 +81,7 @@ class SearchSession {
   async run(api: Api): Promise<void> {
     const text = this.text.trim();
     if (!text) return;
+    if (this.imdb?.text !== text) this.imdb = null;
     this.cancel();
     const abort = new AbortController();
     this.abort = abort;
@@ -84,7 +95,7 @@ class SearchSession {
 
     try {
       for await (const event of api.search(
-        { q: text, categories: this.categories, sort: this.sort },
+        { q: text, categories: this.categories, imdb: this.imdb?.id, sort: this.sort },
         abort.signal,
       )) {
         switch (event.event) {
