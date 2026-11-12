@@ -68,8 +68,13 @@ class DownloadsViewModel(private val app: AppViewModel) : ViewModel() {
             TorrentAction.Start -> BulkAction.Start
             TorrentAction.ForceStart -> BulkAction.ForceStart
         }
+        run(ids, bulk)
+    }
+
+    /** A bulk action (Reannounce, Force recheck) on [ids]; failures are summed up in one message. */
+    fun run(ids: Collection<String>, action: BulkAction) {
         act("Could not change the torrents") { api ->
-            val result = api.torrentBulk(BulkRequest(ids.toList(), bulk))
+            val result = api.torrentBulk(BulkRequest(ids.toList(), action))
             result.failed.firstOrNull()?.let { app.say("${result.failed.size} failed: ${it.message}") }
         }
     }
@@ -124,7 +129,24 @@ class DownloadsViewModel(private val app: AppViewModel) : ViewModel() {
         emptyList()
     }
 
-    /** Applies [patch] to [id]; returns the new details, or `null` on failure (already reported). */
-    suspend fun update(id: String, patch: TorrentPatch): TorrentDetails? =
-        app.withTorrents("Could not change the torrent") { it.updateTorrent(id, patch) }.also { refresh() }
+    /**
+     * Applies [patch] to [id]; returns the new details, or `null` on failure. The failure is
+     * reported as a message, or handed to [onError] when the caller shows it in place.
+     */
+    suspend fun update(id: String, patch: TorrentPatch, onError: ((String) -> Unit)? = null): TorrentDetails? {
+        val updated = if (onError == null) {
+            app.withTorrents("Could not change the torrent") { it.updateTorrent(id, patch) }
+        } else {
+            try {
+                app.torrents().updateTorrent(id, patch)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError(AppViewModel.describe(e))
+                null
+            }
+        }
+        refresh()
+        return updated
+    }
 }
