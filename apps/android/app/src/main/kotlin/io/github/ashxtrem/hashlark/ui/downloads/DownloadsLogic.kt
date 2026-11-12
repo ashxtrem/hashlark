@@ -99,6 +99,13 @@ object DownloadsLogic {
     fun stopToggle(list: List<TorrentSummary>): TorrentAction =
         if (list.isNotEmpty() && list.all { it.runMode == RunMode.Stopped }) TorrentAction.Start else TorrentAction.Stop
 
+    /** Force recheck needs the metadata: off when every selected torrent is still fetching it. */
+    fun canRecheck(list: List<TorrentSummary>): Boolean = list.any { it.state != TorrentState.Metadata }
+
+    /** Reannounce only reaches running torrents: off unless one is downloading or seeding. */
+    fun canReannounce(list: List<TorrentSummary>): Boolean =
+        list.any { it.state == TorrentState.Downloading || it.state == TorrentState.Seeding }
+
     /** The whole-queue index that puts a dragged torrent in [targetId]'s place. */
     fun dropIndex(all: List<TorrentSummary>, targetId: String): Int? =
         byQueue(all).indexOfFirst { it.id == targetId }.takeIf { it >= 0 }

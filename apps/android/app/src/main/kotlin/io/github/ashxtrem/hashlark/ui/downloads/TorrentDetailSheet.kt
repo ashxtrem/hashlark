@@ -21,6 +21,10 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -54,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.ashxtrem.hashlark.core.BulkAction
 import io.github.ashxtrem.hashlark.core.Format
 import io.github.ashxtrem.hashlark.core.PeerInfo
 import io.github.ashxtrem.hashlark.core.SpeedLimits
@@ -61,6 +66,7 @@ import io.github.ashxtrem.hashlark.core.TorrentAction
 import io.github.ashxtrem.hashlark.core.TorrentDetails
 import io.github.ashxtrem.hashlark.core.TorrentFile
 import io.github.ashxtrem.hashlark.core.TorrentPatch
+import io.github.ashxtrem.hashlark.core.TorrentState
 import io.github.ashxtrem.hashlark.core.TorrentSummary
 import io.github.ashxtrem.hashlark.system.TorrentStorage
 import io.github.ashxtrem.hashlark.ui.common.CenteredMessage
@@ -124,6 +130,7 @@ fun TorrentDetailSheet(id: String, vm: DownloadsViewModel, onDelete: (TorrentSum
                         DetailTab.Overview -> Overview(
                             d,
                             onAction = { action -> vm.run(listOf(id), action) },
+                            onBulk = { action -> vm.run(listOf(id), action) },
                             onSave = { patch -> scope.launch { vm.update(id, patch)?.let { details = it } } },
                             onDelete = { onDelete(d.summary) },
                         )
@@ -131,7 +138,14 @@ fun TorrentDetailSheet(id: String, vm: DownloadsViewModel, onDelete: (TorrentSum
                             scope.launch { vm.update(id, TorrentPatch(files = files))?.let { details = it } }
                         }
                         DetailTab.Peers -> Peers(peers)
-                        DetailTab.Trackers -> Trackers(d.trackers)
+                        // Saved on the sheet's scope, so leaving the tab mid-save doesn't cancel it.
+                        DetailTab.Trackers -> Trackers(d) { list, done ->
+                            scope.launch {
+                                var error: String? = null
+                                vm.update(id, TorrentPatch(trackers = list)) { error = it }?.let { details = it }
+                                done(error)
+                            }
+                        }
                     }
                 }
             }
@@ -141,7 +155,13 @@ fun TorrentDetailSheet(id: String, vm: DownloadsViewModel, onDelete: (TorrentSum
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Overview(d: TorrentDetails, onAction: (TorrentAction) -> Unit, onSave: (TorrentPatch) -> Unit, onDelete: () -> Unit) {
+private fun Overview(
+    d: TorrentDetails,
+    onAction: (TorrentAction) -> Unit,
+    onBulk: (BulkAction) -> Unit,
+    onSave: (TorrentPatch) -> Unit,
+    onDelete: () -> Unit,
+) {
     val t = d.summary
     val context = LocalContext.current
     LinearProgressIndicator(progress = { t.progress.coerceIn(0.0, 1.0).toFloat() }, modifier = Modifier.fillMaxWidth())
@@ -157,6 +177,12 @@ private fun Overview(d: TorrentDetails, onAction: (TorrentAction) -> Unit, onSav
             BarAction(Icons.AutoMirrored.Filled.OpenInNew, "Open file") { openFile(context, file) }
         }
         BarAction(TorrentIcons.delete, "Delete", onClick = onDelete)
+        MoreTorrentActions(
+            count = 1,
+            canReannounce = DownloadsLogic.canReannounce(listOf(t)),
+            canRecheck = DownloadsLogic.canRecheck(listOf(t)),
+            onBulk = onBulk,
+        )
     }
     Fact("Size", if (t.size > 0) "${Format.bytes(t.have)} of ${Format.bytes(t.size)}" else "Not known yet")
     Fact("Speed", "↓ ${DownloadsLogic.speed(t.downBps)}  ↑ ${DownloadsLogic.speed(t.upBps)}")
@@ -273,17 +299,131 @@ private fun Peers(peers: List<PeerInfo>) {
     }
 }
 
+/**
+ * The tracker list, edited in place: each row can be edited or removed, many can be pasted at once,
+ * and nothing reaches the engine until Save (each save re-adds the torrent, so peers drop for a moment).
+ * [onSave] starts the save outside this tab and calls back with the engine's error, or `null` once saved.
+ */
 @Composable
-private fun Trackers(trackers: List<String>) {
-    if (trackers.isEmpty()) {
-        Text("No trackers: peers are found through DHT and peer exchange.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Trackers(d: TorrentDetails, onSave: (List<String>, (String?) -> Unit) -> Unit) {
+    // `null` while nothing is staged: the list follows the torrent.
+    var staged by remember(d.id) { mutableStateOf<List<String>?>(null) }
+    var editing by remember(d.id) { mutableStateOf<Int?>(null) }
+    var editText by remember(d.id) { mutableStateOf("") }
+    var adding by remember(d.id) { mutableStateOf("") }
+    var saveError by remember(d.id) { mutableStateOf<String?>(null) }
+    var saving by remember(d.id) { mutableStateOf(false) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    if (d.summary.state == TorrentState.Metadata) {
+        Text("Trackers can be edited once the metadata is known.", color = muted)
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                d.trackers.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+        }
         return
     }
-    SelectionContainer {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            trackers.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
+    val list = staged ?: d.trackers
+    val changed = staged != null && staged != d.trackers
+    fun stage(next: List<String>) {
+        staged = next
+        saveError = null
+    }
+
+    if (list.isEmpty()) Text("No trackers: peers are found through DHT and peer exchange.", color = muted)
+    list.forEachIndexed { i, url ->
+        if (editing == i) {
+            val valid = TrackerEdits.isValid(editText.trim())
+            OutlinedTextField(
+                value = editText,
+                onValueChange = { editText = it },
+                label = { Text("Tracker URL") },
+                isError = !valid,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                trailingIcon = {
+                    Row {
+                        IconButton(
+                            enabled = valid,
+                            onClick = {
+                                stage(TrackerEdits.edit(list, i, editText))
+                                editing = null
+                            },
+                        ) { Icon(Icons.Filled.Check, contentDescription = "Keep") }
+                        IconButton(onClick = { editing = null }) { Icon(Icons.Filled.Close, contentDescription = "Cancel") }
+                    }
+                },
+                supportingText = TrackerEdits.problem(listOf(editText.trim()).filterNot(TrackerEdits::isValid))?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(url, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                IconButton(
+                    enabled = !saving && editing == null,
+                    onClick = {
+                        editText = url
+                        editing = i
+                    },
+                ) { Icon(Icons.Filled.Edit, contentDescription = "Edit tracker $url") }
+                IconButton(
+                    enabled = !saving && editing == null,
+                    onClick = { stage(TrackerEdits.remove(list, i)) },
+                ) { Icon(TorrentIcons.delete, contentDescription = "Remove tracker $url") }
+            }
         }
     }
+
+    val parsed = TrackerEdits.parse(adding)
+    val addProblem = TrackerEdits.problem(parsed.invalid)
+    OutlinedTextField(
+        value = adding,
+        onValueChange = { adding = it },
+        label = { Text("Add trackers (one per line)") },
+        isError = addProblem != null,
+        minLines = 2,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        supportingText = addProblem?.let { { Text(it) } },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedButton(
+        enabled = !saving && editing == null && parsed.valid.isNotEmpty() && addProblem == null,
+        onClick = {
+            stage(TrackerEdits.add(list, parsed.valid))
+            adding = ""
+        },
+    ) { Text("Add") }
+
+    val tooMany = list.size > TrackerEdits.MAX
+    if (tooMany) Text("At most ${TrackerEdits.MAX} trackers.", color = MaterialTheme.colorScheme.error)
+    saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    if (changed) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                enabled = !saving && !tooMany && editing == null,
+                onClick = {
+                    val next = list
+                    saving = true
+                    onSave(next) { error ->
+                        saving = false
+                        // A failed save keeps the staged list so it can be fixed.
+                        if (error == null) staged = null else saveError = error
+                    }
+                },
+            ) { Text("Save") }
+            OutlinedButton(
+                enabled = !saving,
+                onClick = {
+                    staged = null
+                    editing = null
+                    saveError = null
+                },
+            ) { Text("Discard") }
+        }
+    }
+    Text("The engine doesn't report each tracker's status.", style = MaterialTheme.typography.bodySmall, color = muted)
 }
 
 @Composable

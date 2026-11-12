@@ -10,6 +10,8 @@
     Info,
     Pause,
     Play,
+    Radio,
+    RefreshCw,
     Square,
     Trash2,
     Zap,
@@ -17,7 +19,18 @@
   import type { TorrentSummary } from '$lib/api/client';
   import { bytes } from '$lib/format';
   import type { RowAction } from '$lib/state/torrents.svelte';
-  import { eta, percent, ratio, speed, stateTone, statusLabel, type QueueStep, type Tone } from '$lib/torrents';
+  import {
+    canReannounce,
+    canRecheck,
+    eta,
+    percent,
+    ratio,
+    speed,
+    stateTone,
+    statusLabel,
+    type QueueStep,
+    type Tone,
+  } from '$lib/torrents';
 
   interface Props {
     rows: TorrentSummary[];
@@ -33,6 +46,8 @@
     onaction: (ids: string[], action: RowAction) => void;
     onmove: (ids: string[], step: QueueStep) => void;
     ondelete: (ids: string[]) => void;
+    /** Force recheck…: the page asks for confirmation first. */
+    onrecheck: (ids: string[]) => void;
     /** Drag and drop: put `id` in `targetId`'s place. */
     onreorder: (id: string, targetId: string) => void;
     onkeydown: (e: KeyboardEvent) => void;
@@ -50,6 +65,7 @@
     onaction,
     onmove,
     ondelete,
+    onrecheck,
     onreorder,
     onkeydown,
   }: Props = $props();
@@ -109,7 +125,7 @@
       e.preventDefault();
       const menu = document.getElementById(`menu-${focused}`);
       menu?.showPopover();
-      menu?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+      menu?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
       return;
     }
     onkeydown(e);
@@ -117,7 +133,7 @@
 
   /** Arrow keys move between menu items; Escape and Tab return to the list. */
   function onMenuKey(e: KeyboardEvent, id: string) {
-    const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    const items = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')];
     const at = items.indexOf(document.activeElement as HTMLElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -147,6 +163,7 @@
 
 {#snippet menu(t: TorrentSummary)}
   {@const ids = selected.has(t.id) ? [...selected] : [t.id]}
+  {@const targets = ids.length === 1 ? [t] : rows.filter((r) => selected.has(r.id))}
   <div
     id="menu-{t.id}"
     popover
@@ -158,17 +175,20 @@
     onkeydown={(e) => onMenuKey(e, t.id)}
   >
     {#each [
-      { label: 'Force start', icon: Zap, run: () => onaction(ids, 'force_start') },
-      { label: 'Move to top', icon: ArrowUpToLine, run: () => onmove(ids, 'top') },
-      { label: 'Move up', icon: ArrowUp, run: () => onmove(ids, 'up') },
-      { label: 'Move down', icon: ArrowDown, run: () => onmove(ids, 'down') },
-      { label: 'Move to bottom', icon: ArrowDownToLine, run: () => onmove(ids, 'bottom') },
-      { label: 'Details', icon: Info, run: () => onopen(t.id) },
+      { label: 'Force start', icon: Zap, run: () => onaction(ids, 'force_start'), off: false },
+      { label: 'Reannounce', icon: Radio, run: () => onaction(ids, 'reannounce'), off: !canReannounce(targets) },
+      { label: 'Force recheck…', icon: RefreshCw, run: () => onrecheck(ids), off: !canRecheck(targets) },
+      { label: 'Move to top', icon: ArrowUpToLine, run: () => onmove(ids, 'top'), off: false },
+      { label: 'Move up', icon: ArrowUp, run: () => onmove(ids, 'up'), off: false },
+      { label: 'Move down', icon: ArrowDown, run: () => onmove(ids, 'down'), off: false },
+      { label: 'Move to bottom', icon: ArrowDownToLine, run: () => onmove(ids, 'bottom'), off: false },
+      { label: 'Details', icon: Info, run: () => onopen(t.id), off: false },
     ] as item (item.label)}
       <button
         role="menuitem"
         tabindex="-1"
-        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2 focus:bg-surface-2 focus:outline-none"
+        disabled={item.off}
+        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2 focus:bg-surface-2 focus:outline-none disabled:opacity-50 disabled:hover:bg-transparent"
         onclick={() => {
           closeMenu(t.id);
           item.run();

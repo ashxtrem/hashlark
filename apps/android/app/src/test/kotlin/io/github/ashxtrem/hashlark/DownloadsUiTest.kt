@@ -3,6 +3,8 @@
 package io.github.ashxtrem.hashlark
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -11,8 +13,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.width
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -144,6 +149,82 @@ class DownloadsUiTest {
         compose.onNodeWithText("Delete and remove files").performClick()
         compose.waitUntil(5_000) { h.api.bulks.size >= 4 }
         assertEquals(BulkAction.Remove(deleteFiles = true), h.api.bulks.last().action)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun force_recheck_asks_first_then_sends_recheck() {
+        val h = harness()
+        h.showApp()
+        h.go(Destination.Downloads)
+        compose.waitUntil(5_000) { h.text("Ubuntu desktop") }
+        compose.onNode(hasContentDescription("Ubuntu desktop", substring = true)).performTouchInput { longClick() }
+        compose.onNode(hasContentDescription("Arch linux", substring = true)).performClick()
+        compose.waitForIdle()
+        assertTrue(h.text("2 selected"))
+
+        compose.onNodeWithText("More").performClick()
+        compose.onNodeWithText("Force recheck…").performClick()
+        compose.onNodeWithText("Re-verify all downloaded data of 2 torrents?", substring = true).assertExists()
+        assertTrue("nothing is sent before the answer", h.api.bulks.isEmpty())
+        compose.onNodeWithText("Recheck").performClick()
+        compose.waitUntil(5_000) { h.api.bulks.isNotEmpty() }
+        assertEquals(BulkAction.Recheck, h.api.bulks.single().action)
+        assertEquals(setOf("a", "d"), h.api.bulks.single().ids.orEmpty().toSet())
+        assertFalse(h.text("Force recheck"))
+
+        compose.onNodeWithText("More").performClick()
+        compose.onNodeWithText("Reannounce").performClick()
+        compose.waitUntil(5_000) { h.api.bulks.size >= 2 }
+        assertEquals(BulkAction.Reannounce, h.api.bulks.last().action)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun the_trackers_tab_stages_and_saves_the_list() {
+        val h = harness()
+        h.showApp()
+        h.go(Destination.Downloads)
+        compose.waitUntil(5_000) { h.text("Ubuntu desktop") }
+        compose.onNode(hasContentDescription("Ubuntu desktop", substring = true)).performClick()
+        compose.waitUntil(5_000) { h.text("Trackers") }
+        compose.onNodeWithText("Trackers").performClick()
+        compose.waitUntil(5_000) { h.text("Add trackers (one per line)") }
+
+        compose.onNodeWithText("Add trackers (one per line)").performTextInput("ftp://bad.example\n")
+        assertTrue(h.text("Not a tracker URL", substring = true))
+        compose.onNodeWithText("Add trackers (one per line)").performTextClearance()
+        compose.onNodeWithText("Add trackers (one per line)")
+            .performTextInput("udp://one.example:1337/announce\n\nhttps://two.example/announce")
+        compose.onNode(hasText("Add") and hasClickAction()).performClick()
+        compose.waitUntil(5_000) { h.text("Save") }
+        compose.onNodeWithContentDescription("Remove tracker https://two.example/announce").performClick()
+        assertTrue("staged, not sent", h.api.patches.isEmpty())
+
+        // An emptied edit field is invalid but shows no half-empty hint.
+        compose.onNodeWithContentDescription("Edit tracker udp://one.example:1337/announce").performClick()
+        compose.onNodeWithText("Tracker URL").performTextClearance()
+        compose.waitForIdle()
+        assertFalse(h.text("Not a tracker URL", substring = true))
+        compose.onNodeWithContentDescription("Cancel").performClick()
+        compose.onNodeWithText("Save").performClick()
+        compose.waitUntil(5_000) { h.api.patches.isNotEmpty() }
+        assertEquals("a" to listOf("udp://one.example:1337/announce"), h.api.patches.last().let { it.first to it.second.trackers })
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun more_in_the_detail_sheet_is_as_wide_as_its_neighbours() {
+        val h = harness()
+        h.showApp()
+        h.go(Destination.Downloads)
+        compose.waitUntil(5_000) { h.text("Ubuntu desktop") }
+        compose.onNode(hasContentDescription("Ubuntu desktop", substring = true)).performClick()
+        compose.waitUntil(5_000) { h.text("Force start") }
+
+        val more = compose.onNode(hasText("More") and hasClickAction()).getBoundsInRoot().width.value
+        val neighbour = compose.onNode(hasText("Force start") and hasClickAction()).getBoundsInRoot().width.value
+        assertTrue("More $more dp vs Force start $neighbour dp", more < neighbour * 2)
     }
 
     @Test

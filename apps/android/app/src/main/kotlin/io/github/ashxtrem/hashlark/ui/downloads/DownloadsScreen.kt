@@ -167,6 +167,7 @@ fun DownloadsScreen(app: AppViewModel, vm: DownloadsViewModel, modifier: Modifie
                         selected = selected,
                         onRun = { vm.run(selection, it) },
                         onMove = { vm.move(selection, it) },
+                        onBulk = { vm.run(selection, it) },
                         onDelete = { deleting = selected },
                     )
                 }
@@ -340,12 +341,13 @@ private fun TorrentList(
     }
 }
 
-/** The actions on a multi-selection. */
+/** The actions on a multi-selection; Reannounce and Force recheck sit under More. */
 @Composable
 private fun SelectionBar(
     selected: List<TorrentSummary>,
     onRun: (TorrentAction) -> Unit,
     onMove: (QueueStep) -> Unit,
+    onBulk: (BulkAction) -> Unit,
     onDelete: () -> Unit,
 ) {
     val pause = DownloadsLogic.pauseToggle(selected)
@@ -362,6 +364,13 @@ private fun SelectionBar(
             BarAction(TorrentIcons.up, "Move up", each) { onMove(QueueStep.Up) }
             BarAction(TorrentIcons.down, "Move down", each) { onMove(QueueStep.Down) }
             BarAction(TorrentIcons.delete, "Delete", each) { onDelete() }
+            MoreTorrentActions(
+                count = selected.size,
+                canReannounce = DownloadsLogic.canReannounce(selected),
+                canRecheck = DownloadsLogic.canRecheck(selected),
+                onBulk = onBulk,
+                modifier = each,
+            )
         }
     }
 }

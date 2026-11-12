@@ -345,6 +345,51 @@ async fn openapi_lists_routes() {
     assert!(spec["components"]["securitySchemes"]["bearer"].is_object());
 }
 
+/// The tracker patch and the reannounce / recheck bulk actions reach the
+/// service (which answers "client is off"), so their bodies deserialize.
+#[tokio::test]
+async fn tracker_patch_and_recheck_bodies_deserialize() {
+    let app = app().await;
+    let id = "a".repeat(40);
+    let requests = [
+        send_json(
+            "PATCH",
+            &format!("/api/v1/torrents/{id}"),
+            json!({ "trackers": ["udp://tracker.example:1337/announce"] }),
+        ),
+        send_json(
+            "POST",
+            "/api/v1/torrents/bulk",
+            json!({ "ids": [id], "action": "recheck" }),
+        ),
+        send_json(
+            "POST",
+            "/api/v1/torrents/bulk",
+            json!({ "ids": [id], "action": "reannounce" }),
+        ),
+    ];
+    for request in requests {
+        let (status, json) = call_json(&app, request).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{json}");
+        let message = json["error"]["message"].as_str().unwrap_or_default();
+        assert!(message.contains("client is off"), "{json}");
+    }
+    let (status, json) = call_json(
+        &app,
+        send_json(
+            "POST",
+            "/api/v1/torrents/bulk",
+            json!({ "action": "rewind" }),
+        ),
+    )
+    .await;
+    let message = json["error"]["message"].as_str().unwrap_or_default();
+    assert!(
+        status.is_client_error() && !message.contains("client is off"),
+        "an unknown action is refused before the service: {status} {json}"
+    );
+}
+
 const DEF: &str = r#"
 schema: 1
 id: api-test

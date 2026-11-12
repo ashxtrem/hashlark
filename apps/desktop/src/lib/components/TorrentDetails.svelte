@@ -1,6 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <script lang="ts">
-  import { Copy, FileDown, FolderOpen, LoaderCircle, Trash2, X } from '@lucide/svelte';
+  import { Copy, FileDown, FolderOpen, LoaderCircle, Pencil, Plus, Radio, Trash2, X } from '@lucide/svelte';
+  import { tick } from 'svelte';
   import FileTree from './FileTree.svelte';
   import type { PeerInfo, TorrentDetails } from '$lib/api/client';
   import { bytes, dateTime } from '$lib/format';
@@ -8,7 +9,25 @@
   import { app } from '$lib/state/app.svelte';
   import { errorMessage, toasts } from '$lib/state/toasts.svelte';
   import { torrents } from '$lib/state/torrents.svelte';
-  import { displayPath, fileTree, patch, percent, ratio, selectedIndices, speed, statusLabel } from '$lib/torrents';
+  import {
+    canReannounce,
+    displayPath,
+    fileTree,
+    patch,
+    percent,
+    ratio,
+    selectedIndices,
+    speed,
+    statusLabel,
+  } from '$lib/torrents';
+  import {
+    addTrackers,
+    editTracker,
+    focusAfterRemove,
+    removeTracker,
+    trackerError,
+    trackersChanged,
+  } from '$lib/trackers';
 
   interface Props {
     /** Torrent shown; the panel is closed when null. */
@@ -68,12 +87,34 @@
     }
   }
 
+  // Trackers tab: edits are staged here until Save (null = no edits).
+  let staged = $state<string[] | null>(null);
+  let editing = $state<number | null>(null);
+  let editValue = $state('');
+  let editError = $state<string | null>(null);
+  let addText = $state('');
+  let addErrors = $state<string[]>([]);
+  let trackerSaveError = $state<string | null>(null);
+  let savingTrackers = $state(false);
+  let trackerList: HTMLElement | undefined = $state();
+  let addBox: HTMLTextAreaElement | undefined = $state();
+
+  function resetTrackers() {
+    staged = null;
+    editing = null;
+    editError = null;
+    addText = '';
+    addErrors = [];
+    trackerSaveError = null;
+  }
+
   // Reload while open: details every 2 s, peers when that tab shows.
   $effect(() => {
     if (!id) return;
     details = null;
     peers = null;
     error = null;
+    resetTrackers();
     void load(true);
     void Promise.resolve().then(() => closeButton?.focus());
     const timer = setInterval(() => void load(false), 2000);
@@ -138,6 +179,105 @@
     } finally {
       saving = false;
     }
+  }
+
+  // ----- Trackers ------------------------------------------------------------
+
+  /** The list shown: the staged edits, else the torrent's own. */
+  let trackers = $derived(staged ?? details?.trackers ?? []);
+  let trackersDirty = $derived(staged !== null && details !== null && trackersChanged(staged, details.trackers));
+  let torrentState = $derived(live?.state ?? details?.state);
+  /** No metadata yet: trackers, reannounce and recheck are refused. */
+  let noMetadata = $derived(torrentState === 'metadata');
+  let reannounceOk = $derived(torrentState ? canReannounce([{ state: torrentState }]) : false);
+
+  function focusTracker(index: number | null) {
+    const target =
+      index === null
+        ? addBox
+        : trackerList?.querySelector<HTMLElement>(`[data-tracker-edit="${index}"]`);
+    target?.focus();
+  }
+
+  async function startEdit(index: number) {
+    editing = index;
+    editValue = trackers[index] ?? '';
+    editError = null;
+    await tick();
+    trackerList?.querySelector<HTMLInputElement>('[data-tracker-input]')?.select();
+  }
+
+  async function endEdit(index: number) {
+    editing = null;
+    editError = null;
+    await tick();
+    focusTracker(index < trackers.length ? index : focusAfterRemove(trackers.length, index));
+  }
+
+  function onEditKey(e: KeyboardEvent, index: number) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const problem = trackerError(editValue);
+      if (problem) {
+        editError = problem;
+        return;
+      }
+      staged = editTracker(trackers, index, editValue);
+      trackerSaveError = null;
+      void endEdit(index);
+    } else if (e.key === 'Escape') {
+      // Escape cancels the edit, not the whole panel.
+      e.preventDefault();
+      e.stopPropagation();
+      void endEdit(index);
+    }
+  }
+
+  async function removeAt(index: number) {
+    staged = removeTracker(trackers, index);
+    trackerSaveError = null;
+    if (editing !== null) editing = null;
+    await tick();
+    focusTracker(focusAfterRemove(trackers.length, index));
+  }
+
+  function addFromBox(e: SubmitEvent) {
+    e.preventDefault();
+    const res = addTrackers(trackers, addText);
+    if (trackersChanged(res.list, trackers)) {
+      staged = res.list;
+      trackerSaveError = null;
+    }
+    // Bad lines stay in the box to be fixed.
+    addText = res.rejected.join('\n');
+    addErrors = res.errors;
+  }
+
+  async function saveTrackers() {
+    if (!details || staged === null) return;
+    savingTrackers = true;
+    try {
+      const savedId = details.id;
+      const saved = await torrents.setTrackers(savedId, staged);
+      // The user may have switched torrent while saving.
+      if (details?.id !== savedId) return;
+      details = saved;
+      staged = null;
+      trackerSaveError = null;
+      toasts.success('Trackers saved');
+    } catch (e) {
+      // The staged list stays so it can be fixed and saved again.
+      trackerSaveError = errorMessage(e);
+    } finally {
+      savingTrackers = false;
+    }
+  }
+
+  function discardTrackers() {
+    staged = null;
+    editing = null;
+    editError = null;
+    trackerSaveError = null;
   }
 
   async function copy(text: string, what: string) {
@@ -359,15 +499,107 @@
           </table>
         {/if}
       {:else if tab === 'trackers'}
-        {#if d.trackers.length === 0}
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="text-xs font-medium tracking-wide text-muted uppercase">Trackers</h3>
+          <button
+            class="btn-outline px-2 py-1 text-xs"
+            disabled={!reannounceOk}
+            title={reannounceOk ? 'Ask the trackers and DHT for peers again' : 'Only a downloading or seeding torrent can reannounce'}
+            onclick={() => torrents.act([d.id], 'reannounce')}
+          >
+            <Radio size={14} /> Reannounce
+          </button>
+        </div>
+        {#if noMetadata}
+          <p class="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-muted">Trackers can be edited once the metadata is known.</p>
+        {/if}
+        {#if trackers.length === 0}
           <p class="text-muted">No trackers. Peers come from DHT, PEX and local discovery.</p>
         {:else}
-          <ul class="space-y-1">
-            {#each d.trackers as url (url)}
-              <li class="rounded-lg bg-surface-2 px-3 py-1.5 font-mono text-xs break-all">{url}</li>
+          <ul class="space-y-1" aria-label="Trackers" bind:this={trackerList}>
+            {#each trackers as url, i (url)}
+              <li class="flex items-center gap-1 rounded-lg bg-surface-2 py-1 pr-1 pl-3">
+                {#if editing === i && !noMetadata}
+                  <div class="min-w-0 flex-1 py-0.5">
+                    <input
+                      data-tracker-input
+                      class="input py-1 font-mono text-xs"
+                      aria-label="Tracker URL"
+                      aria-describedby="tracker-edit-hint"
+                      aria-invalid={editError !== null}
+                      bind:value={editValue}
+                      onkeydown={(e) => onEditKey(e, i)}
+                    />
+                    {#if editError}
+                      <p class="mt-1 text-xs text-err" role="alert">{editError}</p>
+                    {/if}
+                    <p id="tracker-edit-hint" class="hint mt-1">Enter keeps the change, Escape cancels it.</p>
+                  </div>
+                {:else}
+                  <span class="min-w-0 flex-1 py-0.5 font-mono text-xs break-all">{url}</span>
+                  {#if !noMetadata}
+                    <button
+                      data-tracker-edit={i}
+                      class="icon-btn size-7 shrink-0"
+                      title="Edit"
+                      aria-label="Edit tracker {url}"
+                      onclick={() => startEdit(i)}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      class="icon-btn size-7 shrink-0 hover:text-err"
+                      title="Remove"
+                      aria-label="Remove tracker {url}"
+                      onclick={() => removeAt(i)}
+                    >
+                      <X size={14} />
+                    </button>
+                  {/if}
+                {/if}
+              </li>
             {/each}
           </ul>
-          <p class="hint mt-3">The engine doesn't report each tracker's status.</p>
+        {/if}
+        <p class="hint mt-3">The engine doesn't report each tracker's status.</p>
+
+        {#if !noMetadata}
+          <form class="mt-4 space-y-2" onsubmit={addFromBox}>
+            <label class="label" for="tracker-add">Add trackers (one per line)</label>
+            <textarea
+              id="tracker-add"
+              class="input min-h-20 font-mono text-xs"
+              rows="3"
+              placeholder="udp://tracker.example.org:1337/announce"
+              aria-invalid={addErrors.length > 0}
+              aria-describedby={addErrors.length > 0 ? 'tracker-add-errors' : undefined}
+              bind:this={addBox}
+              bind:value={addText}
+            ></textarea>
+            {#if addErrors.length > 0}
+              <ul id="tracker-add-errors" class="space-y-0.5 text-xs text-err" role="alert">
+                {#each addErrors as message, i (i)}
+                  <li class="break-all">{message}</li>
+                {/each}
+              </ul>
+            {/if}
+            <button class="btn-outline" type="submit" disabled={!addText.trim()}><Plus size={15} /> Add</button>
+          </form>
+
+          {#if trackersDirty}
+            <div class="mt-4 border-t border-line pt-4">
+              {#if trackerSaveError}
+                <p class="mb-3 rounded-lg bg-err-soft px-3 py-2 text-err break-words" role="alert">{trackerSaveError}</p>
+              {/if}
+              <p class="hint mb-2">Saving restarts the torrent's connections for a moment.</p>
+              <div class="flex gap-2">
+                <button class="btn-primary" disabled={savingTrackers || editing !== null} onclick={saveTrackers}>
+                  {#if savingTrackers}<LoaderCircle size={15} class="animate-spin" />{/if} Save
+                </button>
+                <button class="btn-ghost" disabled={savingTrackers} onclick={discardTrackers}>Discard</button>
+              </div>
+            </div>
+          {/if}
         {/if}
       {:else if tab === 'actions'}
         <div class="flex flex-col items-start gap-2">

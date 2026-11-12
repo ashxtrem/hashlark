@@ -8,6 +8,7 @@ import {
   type AddRequest,
   type AddResponse,
   type SessionStats,
+  type TorrentDetails,
   type TorrentSummary,
 } from '$lib/api/client';
 import {
@@ -27,6 +28,7 @@ import {
   backoff,
   downloadingCount,
   isMagnet,
+  maintainRequest,
   moveOrder,
   patch,
   readTorrent,
@@ -38,7 +40,7 @@ import {
   type QueueStep,
 } from '$lib/torrents';
 
-export type RowAction = 'pause' | 'resume' | 'stop' | 'start' | 'force_start';
+export type RowAction = 'pause' | 'resume' | 'stop' | 'start' | 'force_start' | 'reannounce' | 'recheck';
 
 /** The Add dialog, waiting for the user's choice. */
 export interface AddPrompt {
@@ -300,10 +302,18 @@ class TorrentsState {
     toasts.error(failed.map((f) => `${name(f.id)}: ${f.message}`).join('\n'));
   }
 
-  /** Pause, resume, stop, start or force start; every torrent when `ids` is null. */
+  /**
+   * Pause, resume, stop, start, force start, reannounce or recheck; every
+   * torrent when `ids` is null. Reannounce and recheck always name the
+   * torrents (a missing `ids` would reach every one on the engine side).
+   */
   async act(ids: string[] | null, action: RowAction): Promise<void> {
     try {
-      const res = await app.client.bulkTorrents({ ids, action });
+      const res = await app.client.bulkTorrents(
+        action === 'reannounce' || action === 'recheck'
+          ? maintainRequest(ids ?? this.list.map((t) => t.id), action)
+          : { ids, action },
+      );
       this.report(res.failed);
     } catch (e) {
       toasts.error(errorMessage(e));
@@ -319,6 +329,16 @@ class TorrentsState {
       toasts.error(errorMessage(e));
     }
     await this.refresh();
+  }
+
+  /**
+   * Replaces a torrent's tracker list and returns the fresh details. Throws
+   * the engine's error so the Trackers tab can show it next to the list.
+   */
+  async setTrackers(id: string, list: string[]): Promise<TorrentDetails> {
+    const details = await app.client.updateTorrent(id, patch({ trackers: list }));
+    await this.refresh();
+    return details;
   }
 
   /** Moves torrents in the queue; a single one moves past its shown neighbour. */

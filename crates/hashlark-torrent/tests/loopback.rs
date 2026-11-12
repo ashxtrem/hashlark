@@ -351,6 +351,16 @@ mod service {
     /// Seeds a fresh payload from `seeder`; returns its id and a magnet
     /// pointing at the seeder.
     async fn seed(seeder: &Node, file: &str, salt: u8) -> (String, String, Vec<u8>) {
+        seed_with(seeder, file, salt, 256 * 1024).await
+    }
+
+    /// [`seed`] with a given piece length.
+    async fn seed_with(
+        seeder: &Node,
+        file: &str,
+        salt: u8,
+        piece_length: u32,
+    ) -> (String, String, Vec<u8>) {
         let share = seeder.dir.path().join("share");
         std::fs::create_dir_all(&share).unwrap();
         let mut data = test_bytes(FILE_LEN);
@@ -363,7 +373,7 @@ mod service {
                 path,
                 trackers: Vec::new(),
                 name: None,
-                piece_length: Some(256 * 1024),
+                piece_length: Some(piece_length),
             })
             .await
             .unwrap();
@@ -1163,5 +1173,294 @@ mod service {
         svc.start().await.unwrap();
         assert!(svc.is_running());
         svc.stop().await;
+    }
+
+    fn magnet_trackers(magnet: &str) -> Vec<String> {
+        url::Url::parse(magnet)
+            .unwrap()
+            .query_pairs()
+            .filter(|(k, _)| k == "tr")
+            .map(|(_, v)| v.into_owned())
+            .collect()
+    }
+
+    async fn summary(svc: &TorrentService, id: &str) -> TorrentSummary {
+        let list = svc.list().await.unwrap();
+        list.into_iter().find(|t| t.id == id).unwrap()
+    }
+
+    fn bulk(ids: &[&str], action: BulkAction) -> BulkRequest {
+        BulkRequest {
+            ids: Some(ids.iter().map(|s| (*s).to_owned()).collect()),
+            action,
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn edit_trackers_and_reannounce() {
+        let a = node(Vec::new()).await;
+        let b = node(Vec::new()).await;
+        let (id, magnet, data) = seed(&a, "payload.bin", 8).await;
+        b.svc
+            .add(AddRequest::new(AddSource::Magnet(magnet)))
+            .await
+            .unwrap();
+        let before = wait(&b.svc, &id, "download", |t| {
+            t.state == TorrentState::Seeding && t.downloaded_total >= FILE_LEN as u64
+        })
+        .await;
+        assert!(b.svc.details(&id).await.unwrap().trackers.is_empty());
+
+        // Trimmed, deduplicated, in order; with a limits change in the same
+        // patch (one re-add). Nothing listens on port 9.
+        let want = [
+            "udp://127.0.0.1:9/announce",
+            "http://127.0.0.1:9/announce",
+            "wss://127.0.0.1:9/announce",
+        ];
+        let patch = TorrentPatch {
+            trackers: Some(vec![
+                want[0].into(),
+                format!(" {} ", want[1]),
+                want[0].into(),
+                want[2].into(),
+            ]),
+            limits: Some(SpeedLimits {
+                down_kib: Some(4096),
+                up_kib: None,
+            }),
+            ..TorrentPatch::default()
+        };
+        let details = b.svc.update(&id, patch).await.unwrap();
+        assert_eq!(details.trackers, want);
+        assert_eq!(details.limits.down_kib, Some(4096));
+        assert_eq!(details.summary.id, id, "same info hash");
+        let magnet = details.magnet.unwrap();
+        assert_eq!(magnet_trackers(&magnet), want);
+        assert!(magnet.contains("x.pe=127.0.0.1:"), "peers kept: {magnet}");
+        assert!(magnet.contains(&id), "{magnet}");
+        // Fastresume kept: nothing is downloaded again. (librqbit may
+        // spot-check a few pieces after the re-add, so a brief Checking is
+        // fine; Downloading is not.)
+        let states = std::cell::RefCell::new(Vec::new());
+        let t = wait(&b.svc, &id, "seeding after the edit", |t| {
+            states.borrow_mut().push(t.state);
+            t.state == TorrentState::Seeding
+        })
+        .await;
+        assert!(
+            !states.borrow().contains(&TorrentState::Downloading),
+            "downloaded again: {:?}",
+            states.borrow()
+        );
+        assert!((t.progress - 1.0).abs() < f64::EPSILON);
+        assert_eq!(t.downloaded_total, before.downloaded_total);
+        let path = file_in(&b.downloads(), "payload.bin");
+        assert!(std::fs::read(path).unwrap() == data, "same bytes");
+
+        // A bad URL changes nothing.
+        let bad = TorrentPatch {
+            trackers: Some(vec![
+                "http://ok.example/".into(),
+                "ftp://127.0.0.1/x".into(),
+            ]),
+            ..TorrentPatch::default()
+        };
+        let Err(Error::Invalid(message)) = b.svc.update(&id, bad).await else {
+            panic!("ftp is refused");
+        };
+        assert!(message.contains("ftp://127.0.0.1/x"), "{message}");
+        assert_eq!(b.svc.details(&id).await.unwrap().trackers, want);
+
+        // Reannounce a live torrent; it comes back live.
+        let r = b
+            .svc
+            .bulk(bulk(&[&id], BulkAction::Reannounce))
+            .await
+            .unwrap();
+        assert_eq!(r.ok, vec![id.clone()], "{r:?}");
+        wait(&b.svc, &id, "live after reannounce", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+
+        // A paused one is reported as not running.
+        b.svc
+            .update(&id, action(TorrentAction::Pause))
+            .await
+            .unwrap();
+        let missing = "f".repeat(40);
+        let r = b
+            .svc
+            .bulk(bulk(&[&id, &missing], BulkAction::Reannounce))
+            .await
+            .unwrap();
+        assert!(r.ok.is_empty(), "{r:?}");
+        assert_eq!(r.failed.len(), 2);
+        assert!(r.failed[0].message.contains("running"), "{r:?}");
+        assert_eq!(summary(&b.svc, &id).await.state, TorrentState::Paused);
+
+        // The list survives a restart (librqbit keeps the new bytes).
+        b.svc.stop().await;
+        b.svc.start().await.unwrap();
+        wait(&b.svc, &id, "restored", |t| t.size > 0).await;
+        assert_eq!(b.svc.details(&id).await.unwrap().trackers, want);
+
+        // The same list again is no edit: no re-add, so the magnet file
+        // isn't rewritten.
+        let magnet_file = b
+            .dir
+            .path()
+            .join("data/torrents/magnets")
+            .join(format!("{id}.magnet"));
+        let old = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(86_400);
+        std::fs::File::options()
+            .write(true)
+            .open(&magnet_file)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        let same = TorrentPatch {
+            trackers: Some(want.iter().map(|s| (*s).to_owned()).collect()),
+            ..TorrentPatch::default()
+        };
+        let details = b.svc.update(&id, same).await.unwrap();
+        assert_eq!(details.trackers, want);
+        let modified = std::fs::metadata(&magnet_file).unwrap().modified().unwrap();
+        assert_eq!(modified, old, "not re-added");
+
+        // An empty list leaves DHT and PEX only.
+        let patch = TorrentPatch {
+            trackers: Some(Vec::new()),
+            ..TorrentPatch::default()
+        };
+        let details = b.svc.update(&id, patch).await.unwrap();
+        assert!(details.trackers.is_empty());
+        assert!(magnet_trackers(&details.magnet.unwrap()).is_empty());
+
+        // A torrent created here exports its new list too, with the same
+        // info hash.
+        let created = a.svc.torrent_file(&id).await.unwrap();
+        let created = librqbit::torrent_from_bytes(&created).unwrap();
+        let patch = TorrentPatch {
+            trackers: Some(vec![want[1].into()]),
+            ..TorrentPatch::default()
+        };
+        a.svc.update(&id, patch).await.unwrap();
+        let bytes = a.svc.torrent_file(&id).await.unwrap();
+        let parsed = librqbit::torrent_from_bytes(&bytes).unwrap();
+        assert_eq!(parsed.info_hash, created.info_hash);
+        let announce: Vec<&[u8]> = parsed.iter_announce().map(|b| b.as_ref()).collect();
+        assert_eq!(announce, [want[1].as_bytes()]);
+
+        b.svc.stop().await;
+        a.svc.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn recheck_verifies_the_data() {
+        let a = node(Vec::new()).await;
+        let b = node(Vec::new()).await;
+        // 192 pieces: more than librqbit's 64 fastresume spot checks, so
+        // only a full check is sure to find a bad piece.
+        let (id, magnet, data) = seed_with(&a, "small.bin", 9, 16 * 1024).await;
+        b.svc
+            .add(AddRequest::new(AddSource::Magnet(magnet)))
+            .await
+            .unwrap();
+        wait(&b.svc, &id, "download", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+        let full = |t: &TorrentSummary| (t.progress - 1.0).abs() < f64::EPSILON;
+
+        // A finished torrent: checked, then seeding again.
+        let r = b.svc.bulk(bulk(&[&id], BulkAction::Recheck)).await.unwrap();
+        assert_eq!(r.ok, vec![id.clone()], "{r:?}");
+        let mut checking = false;
+        let started = Instant::now();
+        loop {
+            let t = summary(&b.svc, &id).await;
+            checking |= t.state == TorrentState::Checking;
+            if t.state == TorrentState::Seeding && full(&t) {
+                break;
+            }
+            assert!(started.elapsed() < TRANSFER_LIMIT, "recheck: {t:?}");
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(checking, "passes through Checking");
+
+        // A paused torrent stays paused, with its data checked.
+        b.svc
+            .update(&id, action(TorrentAction::Pause))
+            .await
+            .unwrap();
+        let r = b.svc.bulk(bulk(&[&id], BulkAction::Recheck)).await.unwrap();
+        assert_eq!(r.ok.len(), 1, "{r:?}");
+        wait(&b.svc, &id, "checked while paused", |t| {
+            t.state == TorrentState::Paused && full(t)
+        })
+        .await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let t = summary(&b.svc, &id).await;
+        assert_eq!(
+            (t.state, t.run_mode),
+            (TorrentState::Paused, RunMode::Paused)
+        );
+        assert!(full(&t));
+        b.svc
+            .update(&id, action(TorrentAction::Resume))
+            .await
+            .unwrap();
+        wait(&b.svc, &id, "resumed", |t| t.state == TorrentState::Seeding).await;
+
+        // One bad byte: the check finds the piece missing. With the seeder
+        // paused it can't come back yet.
+        a.svc
+            .update(&id, action(TorrentAction::Pause))
+            .await
+            .unwrap();
+        let path = file_in(&b.downloads(), "small.bin");
+        let mut bad = data.clone();
+        bad[FILE_LEN / 2] ^= 0xff;
+        std::fs::write(&path, &bad).unwrap();
+        b.svc.bulk(bulk(&[&id], BulkAction::Recheck)).await.unwrap();
+        let t = wait(&b.svc, &id, "a missing piece", |t| {
+            t.state == TorrentState::Downloading
+        })
+        .await;
+        assert!(t.progress < 1.0 && t.progress > 0.9, "{t:?}");
+
+        // The seeder is back; an auto torrent downloads the piece again.
+        a.svc
+            .update(&id, action(TorrentAction::Resume))
+            .await
+            .unwrap();
+        wait(&a.svc, &id, "seeder back", |t| {
+            t.state == TorrentState::Seeding
+        })
+        .await;
+        let r = b
+            .svc
+            .bulk(bulk(&[&id], BulkAction::Reannounce))
+            .await
+            .unwrap();
+        assert_eq!(r.ok.len(), 1, "{r:?}");
+        wait(&b.svc, &id, "repaired", |t| {
+            t.state == TorrentState::Seeding && full(t)
+        })
+        .await;
+        assert!(std::fs::read(&path).unwrap() == data, "same bytes");
+
+        // No metadata, no recheck.
+        let r = b
+            .svc
+            .bulk(bulk(&["f".repeat(40).as_str()], BulkAction::Recheck))
+            .await
+            .unwrap();
+        assert_eq!(r.failed.len(), 1);
+
+        b.svc.stop().await;
+        a.svc.stop().await;
     }
 }
