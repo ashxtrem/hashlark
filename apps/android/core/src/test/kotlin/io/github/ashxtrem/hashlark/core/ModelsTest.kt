@@ -296,6 +296,20 @@ class ModelsTest {
             ),
         )
         assertEquals("""{"queue_pos":3}""", json.encodeToString(TorrentPatch(queuePos = QueueMove.Index(3))))
+        for ((action, wire) in listOf(BulkAction.Reannounce to "reannounce", BulkAction.Recheck to "recheck")) {
+            val request = BulkRequest(ids = listOf("a"), action = action)
+            val encoded = json.encodeToString(request)
+            assertEquals("""{"ids":["a"],"action":"$wire"}""", encoded)
+            assertEquals(request, json.decodeFromString<BulkRequest>(encoded))
+        }
+        val trackers = TorrentPatch(trackers = listOf("udp://t.example:1337/announce", "https://t.example/announce"))
+        val trackersJson = json.encodeToString(trackers)
+        assertEquals(
+            """{"trackers":["udp://t.example:1337/announce","https://t.example/announce"]}""",
+            trackersJson,
+        )
+        assertEquals(trackers, json.decodeFromString<TorrentPatch>(trackersJson))
+        assertEquals("""{"trackers":[]}""", json.encodeToString(TorrentPatch(trackers = emptyList())))
         val bulk = json.decodeFromString<BulkResult>("""{"ok":["a"],"failed":[{"id":"b","message":"not found"}]}""")
         assertEquals("b", bulk.failed.single().id)
     }

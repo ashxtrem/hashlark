@@ -360,6 +360,8 @@ data class TorrentPatch(
     /** Seeding limits; replaces both values. */
     val seed: SeedLimits? = null,
     @SerialName("queue_pos") val queuePos: QueueMove? = null,
+    /** Replaces the tracker list; an empty list leaves DHT and PEX only. */
+    val trackers: List<String>? = null,
 )
 
 /** An action on many torrents. On the wire: `"pause"`, `{"remove":{"delete_files":true}}`, `{"turtle":true}`. */
@@ -371,6 +373,12 @@ sealed interface BulkAction {
     data object Start : BulkAction
     data object ForceStart : BulkAction
     data class Remove(val deleteFiles: Boolean = false) : BulkAction
+
+    /** Asks trackers and DHT for peers now; only for downloading or seeding torrents. */
+    data object Reannounce : BulkAction
+
+    /** Re-verifies all downloaded data. */
+    data object Recheck : BulkAction
 
     /** Turtle mode (alternative speed) on or off; the ids are ignored. */
     data class Turtle(val on: Boolean) : BulkAction
@@ -386,6 +394,8 @@ object BulkActionSerializer : KSerializer<BulkAction> {
             BulkAction.Stop -> JsonPrimitive("stop")
             BulkAction.Start -> JsonPrimitive("start")
             BulkAction.ForceStart -> JsonPrimitive("force_start")
+            BulkAction.Reannounce -> JsonPrimitive("reannounce")
+            BulkAction.Recheck -> JsonPrimitive("recheck")
             is BulkAction.Remove -> buildJsonObject {
                 put("remove", buildJsonObject { put("delete_files", value.deleteFiles) })
             }
@@ -411,6 +421,8 @@ object BulkActionSerializer : KSerializer<BulkAction> {
             "stop" -> BulkAction.Stop
             "start" -> BulkAction.Start
             "force_start" -> BulkAction.ForceStart
+            "reannounce" -> BulkAction.Reannounce
+            "recheck" -> BulkAction.Recheck
             else -> throw IllegalArgumentException("unknown bulk action `$name`")
         }
     }
