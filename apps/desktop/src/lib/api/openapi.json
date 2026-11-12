@@ -2280,6 +2280,20 @@
                 "description": "Turn turtle mode (alternative speed) on or off; `ids` is ignored."
               }
             }
+          },
+          {
+            "type": "string",
+            "description": "Ask the trackers and peers for peers again (live torrents only).",
+            "enum": [
+              "reannounce"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Re-verify the downloaded data.",
+            "enum": [
+              "recheck"
+            ]
           }
         ],
         "description": "An action on many torrents."
@@ -4702,6 +4716,17 @@
                 "type": "null"
               }
             ],
+            "default": null
+          },
+          "trackers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the tracker list; an empty list leaves DHT and PEX only.",
             "default": null
           }
         }

@@ -38,10 +38,12 @@ use crate::store::{self, Row};
 
 mod apply;
 mod hook;
+mod readd;
 mod tick;
 
 pub(crate) use apply::is_active;
 pub(crate) use hook::{Desired, TorrentFacts, desired_states, peer_share};
+pub(crate) use readd::ReaddOpts;
 pub(crate) use tick::{Counter, live_counters};
 
 /// How often cumulative totals are written to SQLite.

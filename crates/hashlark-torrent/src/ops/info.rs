@@ -193,7 +193,7 @@ impl TorrentService {
         };
         let row = row.ok_or_else(|| Error::NotFound(format!("torrent `{id}`")))?;
         let mut files = Vec::new();
-        let mut trackers = Vec::new();
+        let mut trackers: Vec<String> = Vec::new();
         let mut magnet = std::fs::read_to_string(self.inner.opts.magnet_file(&id)).ok();
         if let Some(handle) = &handle {
             let stats = handle.stats();
@@ -218,13 +218,11 @@ impl TorrentService {
                     });
                 }
             });
-            trackers = handle
-                .shared()
-                .trackers
-                .iter()
-                .map(ToString::to_string)
-                .collect();
-            trackers.sort();
+            let shared = &handle.shared().trackers;
+            trackers = match handle.metadata.load().as_ref() {
+                Some(m) => super::maintain::ordered_trackers(shared, &m.torrent_bytes),
+                None => super::maintain::ordered_trackers(shared, &[]),
+            };
             if magnet.is_none() {
                 magnet =
                     Some(Magnet::from_id20(handle.info_hash(), trackers.clone(), None).to_string());
