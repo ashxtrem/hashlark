@@ -17,6 +17,9 @@ import {
   readTorrent,
   reduce,
   removeRequest,
+  maintainRequest,
+  canReannounce,
+  canRecheck,
   speed,
   statusLabel,
   stepSelection,
@@ -193,7 +196,29 @@ describe('actions', () => {
       peer_limit: null,
       queue_pos: 3,
       seed: null,
+      trackers: null,
     });
+  });
+
+  it('sends a tracker list in a patch', () => {
+    expect(patch({ trackers: ['udp://a.example:1337/announce'] }).trackers).toEqual(['udp://a.example:1337/announce']);
+    expect(patch({ trackers: [] }).trackers).toEqual([]);
+  });
+
+  it('builds reannounce and recheck bulk requests', () => {
+    expect(maintainRequest(['a', 'b'], 'recheck')).toEqual({ ids: ['a', 'b'], action: 'recheck' });
+    expect(maintainRequest(['a'], 'reannounce')).toEqual({ ids: ['a'], action: 'reannounce' });
+  });
+
+  it('enables reannounce and recheck by state', () => {
+    const t = (state: TorrentSummary['state']) => ({ state });
+    expect(canRecheck([t('metadata'), t('metadata')])).toBe(false);
+    expect(canRecheck([t('metadata'), t('paused')])).toBe(true);
+    expect(canRecheck([])).toBe(false);
+    expect(canReannounce([t('paused'), t('queued')])).toBe(false);
+    expect(canReannounce([t('paused'), t('seeding')])).toBe(true);
+    expect(canReannounce([t('downloading')])).toBe(true);
+    expect(canReannounce([t('metadata')])).toBe(false);
   });
 });
 
