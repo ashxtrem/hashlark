@@ -257,7 +257,11 @@
     if (!details || staged === null) return;
     savingTrackers = true;
     try {
-      details = await torrents.setTrackers(details.id, staged);
+      const savedId = details.id;
+      const saved = await torrents.setTrackers(savedId, staged);
+      // The user may have switched torrent while saving.
+      if (details?.id !== savedId) return;
+      details = saved;
       staged = null;
       trackerSaveError = null;
       toasts.success('Trackers saved');

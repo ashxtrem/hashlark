@@ -163,7 +163,7 @@
 
 {#snippet menu(t: TorrentSummary)}
   {@const ids = selected.has(t.id) ? [...selected] : [t.id]}
-  {@const targets = rows.filter((r) => ids.includes(r.id))}
+  {@const targets = ids.length === 1 ? [t] : rows.filter((r) => selected.has(r.id))}
   <div
     id="menu-{t.id}"
     popover
