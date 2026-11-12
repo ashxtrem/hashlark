@@ -4,6 +4,12 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+### Added
+
+- **Edit trackers** for a torrent, in its Trackers tab on desktop, in the web UI and on Android. Add trackers (paste many, one per line), change a URL or remove one, then click **Save**. Up to 100 trackers. An empty list is allowed. See [Trackers](docs/user-guide.md#trackers).
+- **Reannounce** asks the trackers and DHT for peers now. It works on one torrent or a selection of downloading or seeding torrents. Peers drop for a moment.
+- **Force recheck** re-verifies all downloaded data, for one torrent or a selection. It asks for confirmation first and can take minutes for a big torrent. See [Pause, Stop and other actions](docs/user-guide.md#pause-stop-and-other-actions).
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

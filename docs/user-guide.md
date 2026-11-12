@@ -70,11 +70,13 @@ Torrent traffic connects directly. It never goes through Tor or the search proxy
 - **Watched folder** (desktop and server): set a folder under **Settings → Torrent client → Watched folder**. Each `.torrent` file you put in it is added, then renamed to `name.torrent.added` so it isn't added twice. The folder is checked every 5 seconds.
 - **One-time notice:** before your first download, Hashlark asks you to accept a notice. Downloading shares pieces with other people, and it shows them your IP address. Only download what you have the right to. The answer is remembered, and the notice isn't shown again.
 
-### Pause, Stop and Force start
+### Pause, Stop and other actions
 
 - **Pause** is temporary. The torrent keeps its place in the queue. **Resume** carries on.
 - **Stop** takes the torrent out of the queue. A stopped torrent never starts on its own, and a finished one stops seeding. **Start** puts it back in the queue.
 - **Force start** runs the torrent now, even when the queue is full. It doesn't skip the schedule: a schedule hour set to Off still pauses it.
+- **Reannounce** asks the trackers and DHT for more peers now. It works on one torrent or on a selection, and only for torrents that are downloading or seeding. Peers drop for a moment while it runs.
+- **Force recheck** re-verifies all the downloaded data. Hashlark asks you to confirm first. It works on one torrent or on a selection. It can take minutes for a big torrent, and the torrent shows **Checking** with a moving percentage. A running torrent carries on and downloads again any pieces that fail the check. A paused or stopped torrent stays paused, with fresh progress.
 - **Pause all** and **Resume all** are on the Downloads page and in the tray menu.
 - On the Downloads page, Space pauses or resumes, Shift+S stops or starts, and Shift+F force starts.
 
@@ -97,6 +99,18 @@ Seeding means uploading a torrent after you have it, so others can download it t
 - **Stop at ratio:** by default, seeding stops when you have uploaded as much as you downloaded (a ratio of 1.0) on desktop and server. On Android the default is 0, so seeding stops as soon as the download finishes.
 - **Stop after (minutes):** an optional time limit. It counts wall-clock time from the moment the download finished. That includes time when the torrent was paused, and time when Hashlark was closed.
 - You can change both limits for all torrents, or for one torrent.
+
+### Trackers
+
+In a torrent's **Trackers** tab you see its trackers. On desktop, in the web UI and on Android, you can also change them:
+
+- **Add:** paste one tracker, or many, one per line.
+- **Edit:** change a tracker's URL.
+- **Remove:** take a tracker out of the list.
+
+Your changes are staged until you click **Save**. **Discard** drops them and puts the list back. Tracker addresses must start with `http://`, `https://`, `udp://`, `ws://` or `wss://`, and a torrent can have up to 100 trackers. An empty list is allowed. The torrent then finds peers only through DHT and peer exchange.
+
+Saving drops the torrent's peers for a moment. The transfer carries on within seconds. Editing isn't available until Hashlark knows the torrent's metadata. **Copy magnet** copies a link with the new list.
 
 ### Connections
 
