@@ -113,6 +113,8 @@ fn torrent_with_trackers_keeps_the_info_hash() {
     let parsed = librqbit::torrent_from_bytes(&empty).unwrap();
     assert_eq!(parsed.info_hash, original.info_hash);
     assert!(ordered_trackers(&HashSet::new(), &empty).is_empty());
+    // Trackerless: the old announce keys are gone, not left empty.
+    assert!(!empty.windows(8).any(|w| w == b"announce"));
 
     // Unreadable old bytes: just announce, announce-list and info.
     let bare = torrent_with_trackers(b"garbage", INFO, &trackers).unwrap();

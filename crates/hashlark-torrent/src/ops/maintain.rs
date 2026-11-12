@@ -95,10 +95,15 @@ pub(crate) fn torrent_with_trackers(
             })
             .unwrap_or_default();
     let tier: Vec<&str> = trackers.iter().map(Url::as_str).collect();
-    let announce = bencode(&tier.first().copied().unwrap_or(""))?;
-    keys.insert(b"announce", Cow::Owned(announce));
-    let list = bencode(&std::slice::from_ref(&tier))?;
-    keys.insert(b"announce-list", Cow::Owned(list));
+    // No trackers: no announce keys at all, which every client reads as
+    // trackerless (an empty announce string is not).
+    keys.remove(&b"announce"[..]);
+    keys.remove(&b"announce-list"[..]);
+    if let Some(first) = tier.first() {
+        keys.insert(b"announce", Cow::Owned(bencode(first)?));
+        let list = bencode(&std::slice::from_ref(&tier))?;
+        keys.insert(b"announce-list", Cow::Owned(list));
+    }
     keys.insert(b"info", Cow::Borrowed(info_bytes));
     // A dictionary: keys as byte strings, sorted (the map's order).
     let mut out = vec![b'd'];
