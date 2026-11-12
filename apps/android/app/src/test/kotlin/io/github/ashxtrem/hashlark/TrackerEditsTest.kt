@@ -34,6 +34,13 @@ class TrackerEditsTest {
     }
 
     @Test
+    fun `blank lines are no problem to show`() {
+        assertNull(TrackerEdits.problem(listOf("")))
+        assertNull(TrackerEdits.problem(listOf("  ", "")))
+        assertTrue(TrackerEdits.problem(listOf("", "ftp://nope"))!!.endsWith("ftp://nope"))
+    }
+
+    @Test
     fun `add, edit and remove keep the order and drop duplicates`() {
         assertEquals(listOf(a, b, c), TrackerEdits.add(listOf(a, b), listOf(b, c, a)))
         assertEquals(listOf(a, c), TrackerEdits.edit(listOf(a, b), 1, " $c "))

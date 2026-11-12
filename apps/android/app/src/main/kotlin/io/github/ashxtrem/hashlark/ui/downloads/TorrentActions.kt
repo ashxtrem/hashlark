@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -111,8 +110,10 @@ fun MoreTorrentActions(
 ) {
     var menu by rememberSaveable { mutableStateOf(false) }
     var confirming by rememberSaveable { mutableStateOf(false) }
-    Box(modifier) {
-        BarAction(TorrentIcons.more, "More", Modifier.fillMaxWidth()) { menu = true }
+    // The caller's size (a weight in the selection bar) reaches the action as its min size; in a FlowRow
+    // there is none, so the action wraps like its neighbours.
+    Box(modifier, propagateMinConstraints = true) {
+        BarAction(TorrentIcons.more, "More") { menu = true }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             DropdownMenuItem(
                 text = { Text("Reannounce") },
