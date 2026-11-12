@@ -45,10 +45,16 @@ object TrackerEdits {
     fun remove(staged: List<String>, index: Int): List<String> =
         if (index in staged.indices) staged.filterIndexed { i, _ -> i != index } else staged
 
-    /** The message under the add field for the lines that aren't tracker URLs, or `null` when all are. */
-    fun problem(invalid: List<String>): String? = when {
-        invalid.isEmpty() -> null
-        invalid.size == 1 -> "Not a tracker URL (${schemes.joinToString(", ")}): ${invalid.single()}"
-        else -> "${invalid.size} lines aren't tracker URLs (${schemes.joinToString(", ")}): ${invalid.first()}, …"
+    /**
+     * The message under the add field for the lines that aren't tracker URLs, or `null` when all are.
+     * Blank lines are not reported: an empty field shows no hint.
+     */
+    fun problem(invalid: List<String>): String? {
+        val bad = invalid.filter { it.isNotBlank() }
+        return when {
+            bad.isEmpty() -> null
+            bad.size == 1 -> "Not a tracker URL (${schemes.joinToString(", ")}): ${bad.single()}"
+            else -> "${bad.size} lines aren't tracker URLs (${schemes.joinToString(", ")}): ${bad.first()}, …"
+        }
     }
 }

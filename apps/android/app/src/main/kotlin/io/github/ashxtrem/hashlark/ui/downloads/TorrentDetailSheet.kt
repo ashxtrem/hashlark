@@ -138,10 +138,13 @@ fun TorrentDetailSheet(id: String, vm: DownloadsViewModel, onDelete: (TorrentSum
                             scope.launch { vm.update(id, TorrentPatch(files = files))?.let { details = it } }
                         }
                         DetailTab.Peers -> Peers(peers)
-                        DetailTab.Trackers -> Trackers(d) { list ->
-                            var error: String? = null
-                            vm.update(id, TorrentPatch(trackers = list)) { error = it }?.let { details = it }
-                            error
+                        // Saved on the sheet's scope, so leaving the tab mid-save doesn't cancel it.
+                        DetailTab.Trackers -> Trackers(d) { list, done ->
+                            scope.launch {
+                                var error: String? = null
+                                vm.update(id, TorrentPatch(trackers = list)) { error = it }?.let { details = it }
+                                done(error)
+                            }
                         }
                     }
                 }
@@ -299,11 +302,10 @@ private fun Peers(peers: List<PeerInfo>) {
 /**
  * The tracker list, edited in place: each row can be edited or removed, many can be pasted at once,
  * and nothing reaches the engine until Save (each save re-adds the torrent, so peers drop for a moment).
- * [onSave] returns the engine's error, or `null` once saved.
+ * [onSave] starts the save outside this tab and calls back with the engine's error, or `null` once saved.
  */
 @Composable
-private fun Trackers(d: TorrentDetails, onSave: suspend (List<String>) -> String?) {
-    val scope = rememberCoroutineScope()
+private fun Trackers(d: TorrentDetails, onSave: (List<String>, (String?) -> Unit) -> Unit) {
     // `null` while nothing is staged: the list follows the torrent.
     var staged by remember(d.id) { mutableStateOf<List<String>?>(null) }
     var editing by remember(d.id) { mutableStateOf<Int?>(null) }
@@ -404,8 +406,7 @@ private fun Trackers(d: TorrentDetails, onSave: suspend (List<String>) -> String
                 onClick = {
                     val next = list
                     saving = true
-                    scope.launch {
-                        val error = onSave(next)
+                    onSave(next) { error ->
                         saving = false
                         // A failed save keeps the staged list so it can be fixed.
                         if (error == null) staged = null else saveError = error
