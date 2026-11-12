@@ -197,3 +197,13 @@ T2, T3 and T4 can run alongside each other once T1 is merged (T4 can start at on
 
 ## 9. Progress log
 - 2026-11-12: plan written and approved.
+- 2026-11-12: built with /runner (T1–T4). Engine: re-add code moved to `src/service/readd.rs`; a tracker edit keeps the
+  torrent's other top-level keys (comment, created by, …), skips the re-add when the list is unchanged, rewrites the
+  magnet file and the stored `created/<hash>.torrent`; an empty list drops the announce keys. Loopback: 15 tests
+  (was 13), 11.4 s; the plan's six cases are folded into `edit_trackers_and_reannounce` and
+  `recheck_verifies_the_data` (16 KiB pieces so the recheck is a full check, not librqbit's 64-piece spot check).
+  Full suite: cargo 256 passed; pnpm test 121 passed; Android lint/test/assembleDebug green; cargo deny ok.
+  Left for later: a magnet that stopped or errored before its metadata arrived isn't in `metadata` state, so the UI
+  enables recheck/tracker edit and the engine answers "the torrent's metadata isn't known yet"; the rewritten
+  `.torrent`/magnet files are written in place (not atomic), like their first write; Escape on desktop and a tab switch on
+  Android drop staged tracker edits without asking; Android has Reannounce under More, not in the Trackers tab header.
