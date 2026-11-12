@@ -267,6 +267,26 @@ export function removeRequest(ids: string[], deleteFiles: boolean): BulkRequest 
   return { ids, action: { remove: deleteFiles ? { delete_files: true } : {} } };
 }
 
+/** One-shot maintenance actions of the row menu and the details panel. */
+export type MaintainAction = 'reannounce' | 'recheck';
+
+/** The bulk request of Reannounce or Force recheck; always names the torrents. */
+export function maintainRequest(ids: string[], action: MaintainAction): BulkRequest {
+  return { ids, action };
+}
+
+type HasState = Pick<TorrentSummary, 'state'>;
+
+/** Force recheck needs the metadata: allowed unless every torrent still waits for it. */
+export function canRecheck(list: HasState[]): boolean {
+  return list.some((t) => t.state !== 'metadata');
+}
+
+/** Reannounce needs a running torrent: one downloading or seeding. */
+export function canReannounce(list: HasState[]): boolean {
+  return list.some((t) => t.state === 'downloading' || t.state === 'seeding');
+}
+
 /** A `TorrentPatch` that only sets the given fields. */
 export function patch(fields: Partial<TorrentPatch>): TorrentPatch {
   return {
@@ -276,6 +296,7 @@ export function patch(fields: Partial<TorrentPatch>): TorrentPatch {
     peer_limit: null,
     queue_pos: null,
     seed: null,
+    trackers: null,
     ...fields,
   };
 }

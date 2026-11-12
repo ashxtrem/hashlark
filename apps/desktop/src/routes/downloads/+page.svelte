@@ -17,6 +17,7 @@
     Zap,
   } from '@lucide/svelte';
   import DeleteTorrentDialog from '$components/DeleteTorrentDialog.svelte';
+  import RecheckTorrentDialog from '$components/RecheckTorrentDialog.svelte';
   import TorrentDetails from '$components/TorrentDetails.svelte';
   import TorrentList from '$components/TorrentList.svelte';
   import { isTauri, type WhenDoneAction } from '$lib/platform';
@@ -49,6 +50,8 @@
   let detailsId = $state<string | null>(null);
   /** Torrents in the Delete dialog, named when it opened (not live). */
   let deleteTargets = $state<{ id: string; name: string }[]>([]);
+  /** Torrents in the Force recheck dialog. */
+  let recheckIds = $state<string[]>([]);
   let fileInput: HTMLInputElement | undefined = $state();
   let pickShift = false;
   let shiftHeld = false;
@@ -116,6 +119,15 @@
     if (detailsId && ids.includes(detailsId)) detailsId = null;
     selected = new Set([...selected].filter((id) => !ids.includes(id)));
     await torrents.remove(ids, deleteFiles);
+  }
+
+  function askRecheck(ids: string[]) {
+    recheckIds = [...ids];
+  }
+
+  async function confirmRecheck(ids: string[]) {
+    recheckIds = [];
+    await torrents.act(ids, 'recheck');
   }
 
   /** The selection, or the focused row when nothing is selected. */
@@ -350,6 +362,7 @@
       onaction={act}
       onmove={move}
       ondelete={askDelete}
+      onrecheck={askRecheck}
       onreorder={reorder}
       onkeydown={onListKey}
     />
@@ -362,3 +375,4 @@
 
 <TorrentDetails id={detailsId} onclose={() => (detailsId = null)} ondelete={askDelete} />
 <DeleteTorrentDialog targets={deleteTargets} onclose={() => (deleteTargets = [])} onconfirm={confirmDelete} />
+<RecheckTorrentDialog ids={recheckIds} onclose={() => (recheckIds = [])} onconfirm={confirmRecheck} />
