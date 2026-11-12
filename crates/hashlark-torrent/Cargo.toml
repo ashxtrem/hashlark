@@ -13,7 +13,7 @@ bytes = "1.12.1"
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 data-encoding = "2.11.1"
 directories = "6.0.0"
-hashlark-core = { version = "0.3.0", path = "../hashlark-core", default-features = false }
+hashlark-core = { version = "0.4.0", path = "../hashlark-core", default-features = false }
 # rustls only: no OpenSSL / native-tls, no HTTP API or web UI.
 librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
 # librqbit's own bencode, to rebuild a torrent with a new tracker list.

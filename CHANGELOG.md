@@ -4,6 +4,8 @@ All notable changes to Hashlark are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
 ### Added
 
 - **Edit trackers** for a torrent, in its Trackers tab on desktop, in the web UI and on Android. Add trackers (paste many, one per line), change a URL or remove one, then click **Save**. Up to 100 trackers. An empty list is allowed. See [Trackers](docs/user-guide.md#trackers).
