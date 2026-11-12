@@ -16,8 +16,8 @@ data-encoding = "2.11.1"
 futures-core = "0.3.34"
 getrandom = "0.4.3"
 governor = "0.10.4"
-hashlark-core = { version = "0.3.0", path = "../hashlark-core", features = ["keychain", "openapi", "tor"], default-features = false }
-hashlark-torrent = { version = "0.3.0", path = "../hashlark-torrent", features = ["openapi"] }
+hashlark-core = { version = "0.4.0", path = "../hashlark-core", features = ["keychain", "openapi", "tor"], default-features = false }
+hashlark-torrent = { version = "0.4.0", path = "../hashlark-torrent", features = ["openapi"] }
 mime_guess = "2.0.5"
 rust-embed = "8.12.0"
 serde = { version = "1.0.229", features = ["derive"] }
