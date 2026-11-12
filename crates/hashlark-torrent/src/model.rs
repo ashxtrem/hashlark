@@ -296,6 +296,8 @@ pub struct TorrentPatch {
     /// Seeding limits; replaces both values.
     pub seed: Option<SeedLimits>,
     pub queue_pos: Option<QueueMove>,
+    /// Replaces the tracker list; an empty list leaves DHT and PEX only.
+    pub trackers: Option<Vec<String>>,
 }
 
 /// An action on many torrents.
@@ -316,6 +318,10 @@ pub enum BulkAction {
     },
     /// Turn turtle mode (alternative speed) on or off; `ids` is ignored.
     Turtle(bool),
+    /// Ask the trackers and peers for peers again (live torrents only).
+    Reannounce,
+    /// Re-verify the downloaded data.
+    Recheck,
 }
 
 /// Body of `bulk`.

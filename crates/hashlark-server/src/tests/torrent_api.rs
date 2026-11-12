@@ -156,6 +156,23 @@ async fn torrent_add_list_pause_delete() {
     assert_eq!(status, StatusCode::OK, "{bulk}");
     assert_eq!(bulk["ok"], json!([HASH]));
 
+    // Its metadata isn't known (nothing to fetch it from): recheck fails
+    // per torrent, the request itself succeeds.
+    let (status, bulk) = call_json(
+        &app,
+        send_json(
+            "POST",
+            "/api/v1/torrents/bulk",
+            json!({ "ids": [HASH], "action": "recheck" }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{bulk}");
+    assert_eq!(bulk["ok"], json!([]));
+    assert_eq!(bulk["failed"][0]["id"], HASH);
+    let message = bulk["failed"][0]["message"].as_str().unwrap();
+    assert!(message.contains("metadata"), "{bulk}");
+
     let (status, _) = call(&app, delete(&format!("/api/v1/torrents/{HASH}"))).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (_, list) = call_json(&app, get("/api/v1/torrents")).await;

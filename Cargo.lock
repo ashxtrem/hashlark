@@ -3613,11 +3613,13 @@ name = "hashlark-torrent"
 version = "0.3.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "chrono",
  "data-encoding",
  "directories",
  "hashlark-core",
  "librqbit",
+ "librqbit-bencode",
  "serde",
  "serde_json",
  "sqlx",

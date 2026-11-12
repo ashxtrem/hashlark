@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Applying the policy: pause / unpause, metadata fetches of magnets, and
-//! re-adding a torrent when its add-time options change.
+//! the librqbit add options of a row.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -267,88 +267,5 @@ impl TorrentService {
             peer_limit: Some(peer_share(t.peer_limit_global, own, running) as usize),
             ..Default::default()
         }
-    }
-
-    /// Re-adds a torrent so new per-torrent limits take effect: librqbit
-    /// reads them only at add. Keeps the fastresume bitfield, so nothing is
-    /// re-checked. The caller holds `run.op_lock`; the next reconcile
-    /// resumes it if it should run.
-    ///
-    /// When the add fails, the torrent is added back with `previous`'s
-    /// options; when that fails too, it is marked with an error so it
-    /// doesn't silently vanish.
-    pub(crate) async fn readd(&self, run: &Arc<Running>, hash: &str, previous: &Row) -> Result<()> {
-        let key = torrent_key(hash)?;
-        let Some(handle) = run.session.get(key) else {
-            // Not added yet: the fetch uses the new options.
-            return Ok(());
-        };
-        let Some(bytes) = handle
-            .metadata
-            .load()
-            .as_ref()
-            .map(|m| m.torrent_bytes.clone())
-        else {
-            return Ok(());
-        };
-        let Some(row) = run.state.lock().expect("lock").rows.get(hash).cloned() else {
-            return Ok(());
-        };
-        let only_files = handle.only_files();
-        let output_folder = handle.output_folder().to_path_buf();
-        self.capture(run, hash, &handle);
-        let running = self.handles(run).values().filter(|h| is_active(h)).count();
-        drop(handle);
-
-        let bitv = self
-            .inner
-            .opts
-            .persistence_dir()
-            .join(format!("{hash}.bitv"));
-        let kept = std::fs::read(&bitv).ok();
-        run.session
-            .delete(key, false)
-            .await
-            .map_err(|e| invalid("could not apply the limits", e))?;
-        if let Some(kept) = kept
-            && let Err(e) = std::fs::write(&bitv, kept)
-        {
-            tracing::debug!(error = %e, "fastresume state not kept; the torrent is re-checked");
-        }
-        if let Some(c) = run.state.lock().expect("lock").counters.get_mut(hash) {
-            c.reset_live();
-        }
-        let peers = std::fs::read_to_string(self.inner.opts.magnet_file(hash))
-            .map(|m| magnet_peers(&m))
-            .unwrap_or_default();
-        let options = |row: &Row| {
-            let mut opts = self.add_options(run, row, peers.clone(), running.max(1), true);
-            opts.output_folder = Some(output_folder.to_string_lossy().into_owned());
-            opts.only_files.clone_from(&only_files);
-            opts
-        };
-        let err = match run
-            .session
-            .add_torrent(AddTorrent::from_bytes(bytes.clone()), Some(options(&row)))
-            .await
-        {
-            Ok(_) => return Ok(()),
-            Err(e) => invalid("could not apply the limits", e),
-        };
-        tracing::warn!(%hash, error = %err, "re-adding with the previous limits");
-        if let Err(e) = run
-            .session
-            .add_torrent(AddTorrent::from_bytes(bytes), Some(options(previous)))
-            .await
-        {
-            let message = format!("could not add the torrent back: {e:#}");
-            tracing::warn!(%hash, %message, "torrent lost from the session");
-            run.state
-                .lock()
-                .expect("lock")
-                .errors
-                .insert(hash.to_owned(), message);
-        }
-        Err(err)
     }
 }

@@ -5,6 +5,7 @@
 
 mod add;
 mod info;
+mod maintain;
 
 use std::collections::HashSet;
 
@@ -12,8 +13,8 @@ use hashlark_core::{Error, Result};
 use librqbit::ManagedTorrentState;
 
 use crate::model::{
-    BulkAction, BulkFailure, BulkRequest, BulkResult, Origin, QueueMove, QueueStep, TorrentDetails,
-    TorrentPatch,
+    BulkAction, BulkFailure, BulkRequest, BulkResult, Origin, QueueMove, QueueStep, TorrentAction,
+    TorrentDetails, TorrentPatch,
 };
 use crate::service::{Running, TorrentService, invalid, torrent_key};
 use crate::store;
@@ -32,10 +33,10 @@ fn queue_target(from: usize, len: usize, mv: QueueMove) -> usize {
 
 impl TorrentService {
     /// Changes a torrent (plan §3.2): run mode, files, limits, connection
-    /// limit, seeding limits, queue position.
+    /// limit, seeding limits, queue position, trackers.
     ///
-    /// New speed or connection limits re-add the torrent at once (librqbit
-    /// reads them only at add); its fastresume state is kept.
+    /// New speed or connection limits or trackers re-add the torrent at
+    /// once (librqbit reads them only at add); its fastresume state is kept.
     pub async fn update(&self, id: &str, patch: TorrentPatch) -> Result<TorrentDetails> {
         let id = id.to_ascii_lowercase();
         let run = self.require()?;
@@ -86,6 +87,10 @@ impl TorrentService {
                 "seed ratio must be between 0 and 100".into(),
             ));
         }
+        let trackers = match &patch.trackers {
+            Some(raw) => Some(Self::tracker_edit(handle.as_ref(), raw)?),
+            None => None,
+        };
 
         if let (Some(files), Some(handle)) = (&files, &handle) {
             run.session
@@ -127,9 +132,15 @@ impl TorrentService {
         if let Some(mv) = patch.queue_pos {
             self.move_in_queue(&run, &id, mv).await?;
         }
-        if readd && let Err(e) = self.readd(&run, &id, &previous).await {
-            // The torrent keeps (or is back on) its old limits; so does the
-            // row.
+        // One re-add carries both new trackers and new limits.
+        let readded = match trackers {
+            Some(edit) => self.set_trackers(&run, &id, &previous, edit).await,
+            None if readd => self.readd(&run, &id, &previous).await,
+            None => Ok(()),
+        };
+        if let Err(e) = readded {
+            // The torrent keeps (or is back on) its old limits and trackers;
+            // so does the row.
             let row = {
                 let mut st = run.state.lock().expect("lock");
                 st.rows.get_mut(&id).map(|row| {
@@ -248,32 +259,50 @@ impl TorrentService {
         drop(run);
         let mut result = BulkResult::default();
         for id in ids {
-            let done = match &req.action {
-                BulkAction::Remove { delete_files } => self.remove(&id, *delete_files).await,
-                action => {
-                    let action = match action {
-                        BulkAction::Pause => crate::model::TorrentAction::Pause,
-                        BulkAction::Resume => crate::model::TorrentAction::Resume,
-                        BulkAction::Stop => crate::model::TorrentAction::Stop,
-                        BulkAction::Start => crate::model::TorrentAction::Start,
-                        _ => crate::model::TorrentAction::ForceStart,
-                    };
-                    let patch = TorrentPatch {
-                        action: Some(action),
-                        ..TorrentPatch::default()
-                    };
-                    self.update(&id, patch).await.map(|_| ())
+            let action = match &req.action {
+                BulkAction::Pause => TorrentAction::Pause,
+                BulkAction::Resume => TorrentAction::Resume,
+                BulkAction::Stop => TorrentAction::Stop,
+                BulkAction::Start => TorrentAction::Start,
+                BulkAction::ForceStart => TorrentAction::ForceStart,
+                BulkAction::Remove { delete_files } => {
+                    let done = self.remove(&id, *delete_files).await;
+                    result.push(id, done);
+                    continue;
                 }
+                BulkAction::Reannounce => {
+                    let done = self.reannounce(&id).await;
+                    result.push(id, done);
+                    continue;
+                }
+                BulkAction::Recheck => {
+                    let done = self.recheck(&id).await;
+                    result.push(id, done);
+                    continue;
+                }
+                // Handled above, before the client is required.
+                BulkAction::Turtle(_) => continue,
             };
-            match done {
-                Ok(()) => result.ok.push(id.to_ascii_lowercase()),
-                Err(e) => result.failed.push(BulkFailure {
-                    id,
-                    message: e.to_string(),
-                }),
-            }
+            let patch = TorrentPatch {
+                action: Some(action),
+                ..TorrentPatch::default()
+            };
+            let done = self.update(&id, patch).await.map(|_| ());
+            result.push(id, done);
         }
         Ok(result)
+    }
+}
+
+impl BulkResult {
+    fn push(&mut self, id: String, done: Result<()>) {
+        match done {
+            Ok(()) => self.ok.push(id.to_ascii_lowercase()),
+            Err(e) => self.failed.push(BulkFailure {
+                id,
+                message: e.to_string(),
+            }),
+        }
     }
 }
 
@@ -305,5 +334,17 @@ mod tests {
         assert_eq!(bulk.action, BulkAction::Remove { delete_files: true });
         let bulk: BulkRequest = serde_json::from_str(r#"{"ids":["a"],"action":"pause"}"#).unwrap();
         assert_eq!(bulk.action, BulkAction::Pause);
+        for (json, want) in [
+            ("reannounce", BulkAction::Reannounce),
+            ("recheck", BulkAction::Recheck),
+        ] {
+            let body = format!(r#"{{"ids":["a"],"action":"{json}"}}"#);
+            let bulk: BulkRequest = serde_json::from_str(&body).unwrap();
+            assert_eq!(bulk.action, want);
+            assert_eq!(serde_json::to_string(&want).unwrap(), format!("\"{json}\""));
+        }
+        let patch: TorrentPatch =
+            serde_json::from_str(r#"{"trackers":["udp://t.example:1"]}"#).unwrap();
+        assert_eq!(patch.trackers, Some(vec!["udp://t.example:1".to_owned()]));
     }
 }

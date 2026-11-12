@@ -699,7 +699,7 @@ export interface components {
         } | {
             /** @description Turn turtle mode (alternative speed) on or off; `ids` is ignored. */
             turtle: boolean;
-        };
+        } | "reannounce" | "recheck";
         /** @description One failure of a bulk action. */
         BulkFailure: {
             id: string;
@@ -1593,6 +1593,11 @@ export interface components {
             queue_pos: components["schemas"]["QueueMove"] | null;
             /** @default null */
             seed: components["schemas"]["SeedLimits"] | null;
+            /**
+             * @description Replaces the tracker list; an empty list leaves DHT and PEX only.
+             * @default null
+             */
+            trackers: string[] | null;
         };
         /** @description Settings of the built-in torrent client. */
         TorrentSettings: {
