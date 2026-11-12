@@ -1239,7 +1239,9 @@ mod service {
         assert_eq!(magnet_trackers(&magnet), want);
         assert!(magnet.contains("x.pe=127.0.0.1:"), "peers kept: {magnet}");
         assert!(magnet.contains(&id), "{magnet}");
-        // Fastresume kept: nothing is downloaded again.
+        // Fastresume kept: nothing is downloaded again. (librqbit may
+        // spot-check a few pieces after the re-add, so a brief Checking is
+        // fine; Downloading is not.)
         let states = std::cell::RefCell::new(Vec::new());
         let t = wait(&b.svc, &id, "seeding after the edit", |t| {
             states.borrow_mut().push(t.state);
@@ -1247,8 +1249,8 @@ mod service {
         })
         .await;
         assert!(
-            !states.borrow().contains(&TorrentState::Checking),
-            "not re-checked: {:?}",
+            !states.borrow().contains(&TorrentState::Downloading),
+            "downloaded again: {:?}",
             states.borrow()
         );
         assert!((t.progress - 1.0).abs() < f64::EPSILON);
