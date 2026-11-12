@@ -1304,6 +1304,29 @@ mod service {
         wait(&b.svc, &id, "restored", |t| t.size > 0).await;
         assert_eq!(b.svc.details(&id).await.unwrap().trackers, want);
 
+        // The same list again is no edit: no re-add, so the magnet file
+        // isn't rewritten.
+        let magnet_file = b
+            .dir
+            .path()
+            .join("data/torrents/magnets")
+            .join(format!("{id}.magnet"));
+        let old = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(86_400);
+        std::fs::File::options()
+            .write(true)
+            .open(&magnet_file)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        let same = TorrentPatch {
+            trackers: Some(want.iter().map(|s| (*s).to_owned()).collect()),
+            ..TorrentPatch::default()
+        };
+        let details = b.svc.update(&id, same).await.unwrap();
+        assert_eq!(details.trackers, want);
+        let modified = std::fs::metadata(&magnet_file).unwrap().modified().unwrap();
+        assert_eq!(modified, old, "not re-added");
+
         // An empty list leaves DHT and PEX only.
         let patch = TorrentPatch {
             trackers: Some(Vec::new()),
@@ -1312,6 +1335,21 @@ mod service {
         let details = b.svc.update(&id, patch).await.unwrap();
         assert!(details.trackers.is_empty());
         assert!(magnet_trackers(&details.magnet.unwrap()).is_empty());
+
+        // A torrent created here exports its new list too, with the same
+        // info hash.
+        let created = a.svc.torrent_file(&id).await.unwrap();
+        let created = librqbit::torrent_from_bytes(&created).unwrap();
+        let patch = TorrentPatch {
+            trackers: Some(vec![want[1].into()]),
+            ..TorrentPatch::default()
+        };
+        a.svc.update(&id, patch).await.unwrap();
+        let bytes = a.svc.torrent_file(&id).await.unwrap();
+        let parsed = librqbit::torrent_from_bytes(&bytes).unwrap();
+        assert_eq!(parsed.info_hash, created.info_hash);
+        let announce: Vec<&[u8]> = parsed.iter_announce().map(|b| b.as_ref()).collect();
+        assert_eq!(announce, [want[1].as_bytes()]);
 
         b.svc.stop().await;
         a.svc.stop().await;
