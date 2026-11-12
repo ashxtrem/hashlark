@@ -4,14 +4,16 @@
 //! §3.3). librqbit has none of them as an API: each one re-adds the torrent
 //! or pauses and resumes it.
 
-use std::collections::HashSet;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use bytes::Bytes;
 use hashlark_core::{Error, Result};
 use librqbit::{ManagedTorrent, ManagedTorrentState};
-use librqbit_bencode::raw_value::RawValue;
+use librqbit_bencode::WithRawBytes;
 use serde::Serialize;
+use serde::de::IgnoredAny;
 use url::Url;
 
 use crate::service::{ReaddOpts, Running, TorrentService, invalid, torrent_key};
@@ -65,26 +67,47 @@ pub(crate) fn tracker_list(raw: &[String]) -> Result<Vec<Url>> {
     Ok(out)
 }
 
-/// A .torrent with `info_bytes` as its info dictionary and `trackers` as
-/// one tier, like librqbit's own `torrent_file_from_info_bytes`. The info
-/// bytes are kept as they are, so the info hash doesn't change.
-pub(crate) fn torrent_with_trackers(info_bytes: &[u8], trackers: &[Url]) -> Result<Bytes> {
-    #[derive(Serialize)]
-    struct Torrent<'a> {
-        announce: &'a str,
-        #[serde(rename = "announce-list")]
-        announce_list: &'a [Vec<&'a str>],
-        info: RawValue<&'a [u8]>,
-    }
-    let tier: Vec<&str> = trackers.iter().map(Url::as_str).collect();
-    let torrent = Torrent {
-        announce: tier.first().copied().unwrap_or(""),
-        announce_list: std::slice::from_ref(&tier),
-        info: RawValue(info_bytes),
-    };
+/// The bencoded form of `value`.
+fn bencode(value: &impl Serialize) -> Result<Vec<u8>> {
     let mut out = Vec::new();
-    librqbit_bencode::bencode_serialize_to_writer(&torrent, &mut out)
+    librqbit_bencode::bencode_serialize_to_writer(value, &mut out)
         .map_err(|e| invalid("could not build the torrent", e))?;
+    Ok(out)
+}
+
+/// `old` (a .torrent) with `info_bytes` as its info dictionary and
+/// `trackers` as one tier. Its other top-level keys (comment, created by,
+/// creation date, url-list, ...) are kept as they were; when `old` can't be
+/// read, the torrent has just the three. The info bytes are kept as they
+/// are, so the info hash doesn't change.
+pub(crate) fn torrent_with_trackers(
+    old: &[u8],
+    info_bytes: &[u8],
+    trackers: &[Url],
+) -> Result<Bytes> {
+    type Raw<'a> = WithRawBytes<IgnoredAny, &'a [u8]>;
+    let mut keys: BTreeMap<&[u8], Cow<'_, [u8]>> =
+        librqbit_bencode::from_bytes::<HashMap<&[u8], Raw<'_>>>(old)
+            .map(|dict| {
+                dict.into_iter()
+                    .map(|(k, v)| (k, Cow::Borrowed(v.raw_bytes)))
+                    .collect()
+            })
+            .unwrap_or_default();
+    let tier: Vec<&str> = trackers.iter().map(Url::as_str).collect();
+    let announce = bencode(&tier.first().copied().unwrap_or(""))?;
+    keys.insert(b"announce", Cow::Owned(announce));
+    let list = bencode(&std::slice::from_ref(&tier))?;
+    keys.insert(b"announce-list", Cow::Owned(list));
+    keys.insert(b"info", Cow::Borrowed(info_bytes));
+    // A dictionary: keys as byte strings, sorted (the map's order).
+    let mut out = vec![b'd'];
+    for (key, value) in &keys {
+        out.extend_from_slice(format!("{}:", key.len()).as_bytes());
+        out.extend_from_slice(key);
+        out.extend_from_slice(value);
+    }
+    out.push(b'e');
     Ok(out.into())
 }
 
@@ -157,26 +180,40 @@ fn require_row(run: &Running, id: &str) -> Result<Row> {
 }
 
 impl TorrentService {
-    /// Checks a tracker edit for `update`, changing nothing.
+    /// Checks a tracker edit for `update`, changing nothing. `None` when the
+    /// list is the torrent's current one (in the order `details` shows):
+    /// there is nothing to re-add.
     pub(crate) fn tracker_edit(
         handle: Option<&Arc<ManagedTorrent>>,
         raw: &[String],
-    ) -> Result<TrackerEdit> {
+    ) -> Result<Option<TrackerEdit>> {
         let trackers = tracker_list(raw)?;
-        let info_bytes = handle
-            .and_then(|h| h.metadata.load().as_ref().map(|m| m.info_bytes.clone()))
+        let handle = handle.ok_or_else(|| Error::Invalid(NO_METADATA.into()))?;
+        let (info_bytes, old_bytes) = handle
+            .metadata
+            .load()
+            .as_ref()
+            .map(|m| (m.info_bytes.clone(), m.torrent_bytes.clone()))
             .ok_or_else(|| Error::Invalid(NO_METADATA.into()))?;
-        let torrent_bytes = torrent_with_trackers(&info_bytes, &trackers)?;
-        Ok(TrackerEdit {
+        let current = ordered_trackers(&handle.shared().trackers, &old_bytes);
+        if current
+            .iter()
+            .map(String::as_str)
+            .eq(trackers.iter().map(Url::as_str))
+        {
+            return Ok(None);
+        }
+        let torrent_bytes = torrent_with_trackers(&old_bytes, &info_bytes, &trackers)?;
+        Ok(Some(TrackerEdit {
             trackers,
             torrent_bytes,
-        })
+        }))
     }
 
     /// Re-adds a torrent with a new tracker list (and the row's current
     /// options, so a limits change in the same patch needs no second
-    /// re-add), then rewrites its magnet file. The caller holds
-    /// `run.op_lock`.
+    /// re-add), then rewrites its magnet file and the .torrent it was
+    /// created as, if it has them. The caller holds `run.op_lock`.
     pub(crate) async fn set_trackers(
         &self,
         run: &Arc<Running>,
@@ -185,7 +222,7 @@ impl TorrentService {
         edit: TrackerEdit,
     ) -> Result<()> {
         let opts = ReaddOpts {
-            torrent_bytes: Some(edit.torrent_bytes),
+            torrent_bytes: Some(edit.torrent_bytes.clone()),
             keep_fastresume: true,
         };
         self.readd_with(run, id, previous, opts).await?;
@@ -194,6 +231,13 @@ impl TorrentService {
             && let Err(e) = std::fs::write(&file, magnet_with_trackers(&magnet, &edit.trackers))
         {
             tracing::warn!(%id, error = %e, "could not update the magnet file");
+        }
+        // `torrent_file` exports this one first.
+        let created = self.inner.opts.created_file(id);
+        if created.is_file()
+            && let Err(e) = std::fs::write(&created, &edit.torrent_bytes)
+        {
+            tracing::warn!(%id, error = %e, "could not update the created torrent");
         }
         Ok(())
     }
@@ -235,147 +279,4 @@ impl TorrentService {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn strings(list: &[&str]) -> Vec<String> {
-        list.iter().map(|s| (*s).to_owned()).collect()
-    }
-
-    fn invalid_list(list: &[String]) -> bool {
-        matches!(tracker_list(list), Err(Error::Invalid(_)))
-    }
-
-    #[test]
-    fn tracker_list_rules() {
-        let ok = tracker_list(&strings(&[
-            "http://a.example/announce",
-            " https://b.example/announce ",
-            "udp://c.example:1337",
-            "ws://d.example/",
-            "wss://e.example/",
-            "",
-        ]))
-        .unwrap();
-        let ok: Vec<&str> = ok.iter().map(Url::as_str).collect();
-        assert_eq!(
-            ok,
-            [
-                "http://a.example/announce",
-                "https://b.example/announce",
-                "udp://c.example:1337",
-                "ws://d.example/",
-                "wss://e.example/",
-            ]
-        );
-        assert!(tracker_list(&[]).unwrap().is_empty());
-
-        let Err(Error::Invalid(message)) =
-            tracker_list(&strings(&["http://a.example/", "ftp://x.example/"]))
-        else {
-            panic!("ftp is refused");
-        };
-        assert!(message.contains("ftp://x.example/"), "{message}");
-        assert!(invalid_list(&strings(&["not a url"])));
-        assert!(invalid_list(&strings(&["magnet:?xt=urn:btih:00"])));
-
-        let many: Vec<String> = (0..=MAX_TRACKERS)
-            .map(|i| format!("http://t{i}.example/"))
-            .collect();
-        assert!(invalid_list(&many));
-        assert!(tracker_list(&many[..MAX_TRACKERS]).is_ok());
-
-        let long = format!("http://a.example/{}", "x".repeat(MAX_URL_LEN));
-        assert!(invalid_list(&[long]));
-    }
-
-    #[test]
-    fn tracker_list_dedupes_in_order() {
-        let list = tracker_list(&strings(&[
-            "udp://b.example:1",
-            "http://a.example/announce",
-            "udp://b.example:1",
-            " http://a.example/announce",
-            "http://c.example/announce",
-        ]))
-        .unwrap();
-        let list: Vec<&str> = list.iter().map(Url::as_str).collect();
-        assert_eq!(
-            list,
-            [
-                "udp://b.example:1",
-                "http://a.example/announce",
-                "http://c.example/announce"
-            ]
-        );
-    }
-
-    const INFO: &[u8] =
-        b"d6:lengthi5e4:name5:a.bin12:piece lengthi16384e6:pieces20:01234567890123456789e";
-
-    #[test]
-    fn torrent_with_trackers_keeps_the_info_hash() {
-        let mut original = b"d8:announce19:http://old.example/4:info".to_vec();
-        original.extend_from_slice(INFO);
-        original.push(b'e');
-        let original = librqbit::torrent_from_bytes(&original).unwrap();
-
-        let trackers = tracker_list(&strings(&[
-            "udp://b.example:1",
-            "http://a.example/announce",
-        ]))
-        .unwrap();
-        let bytes = torrent_with_trackers(INFO, &trackers).unwrap();
-        let parsed = librqbit::torrent_from_bytes(&bytes).unwrap();
-        assert_eq!(parsed.info_hash, original.info_hash);
-        let announce: Vec<&[u8]> = parsed.iter_announce().map(|b| b.as_ref()).collect();
-        assert_eq!(
-            announce,
-            [&b"udp://b.example:1"[..], &b"http://a.example/announce"[..]]
-        );
-
-        let set: HashSet<Url> = trackers.iter().cloned().collect();
-        assert_eq!(
-            ordered_trackers(&set, &bytes),
-            ["udp://b.example:1", "http://a.example/announce"]
-        );
-        assert_eq!(
-            ordered_trackers(&set, b"garbage"),
-            ["http://a.example/announce", "udp://b.example:1"]
-        );
-
-        let empty = torrent_with_trackers(INFO, &[]).unwrap();
-        let parsed = librqbit::torrent_from_bytes(&empty).unwrap();
-        assert_eq!(parsed.info_hash, original.info_hash);
-        assert!(ordered_trackers(&HashSet::new(), &empty).is_empty());
-    }
-
-    #[test]
-    fn magnet_with_trackers_replaces_tr_only() {
-        let magnet = "magnet:?xt=urn:btih:abcd&dn=My%20File&tr=http%3A%2F%2Fold.example%2F\
-                      &x.pe=127.0.0.1:6881&tr=udp%3A%2F%2Fold2.example%3A1&x.pe=[::1]:6881&so=0";
-        let trackers = tracker_list(&strings(&[
-            "udp://new.example:80",
-            "http://n2.example/a?b=c",
-        ]))
-        .unwrap();
-        let out = magnet_with_trackers(magnet, &trackers);
-        assert_eq!(
-            out,
-            "magnet:?xt=urn:btih:abcd&dn=My%20File&x.pe=127.0.0.1:6881&x.pe=[::1]:6881&so=0\
-             &tr=udp%3A%2F%2Fnew.example%3A80&tr=http%3A%2F%2Fn2.example%2Fa%3Fb%3Dc"
-        );
-        let parsed = Url::parse(&out).unwrap();
-        let tr: Vec<String> = parsed
-            .query_pairs()
-            .filter(|(k, _)| k == "tr")
-            .map(|(_, v)| v.into_owned())
-            .collect();
-        assert_eq!(tr, ["udp://new.example:80", "http://n2.example/a?b=c"]);
-        assert_eq!(crate::service::magnet_peers(&out).len(), 2);
-
-        let none = magnet_with_trackers(magnet, &[]);
-        assert!(!none.contains("tr="), "{none}");
-        assert!(none.contains("dn=My%20File"));
-    }
-}
+mod tests;

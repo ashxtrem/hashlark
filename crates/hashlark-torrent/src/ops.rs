@@ -88,7 +88,8 @@ impl TorrentService {
             ));
         }
         let trackers = match &patch.trackers {
-            Some(raw) => Some(Self::tracker_edit(handle.as_ref(), raw)?),
+            // `None` too when the list is unchanged: no re-add for it.
+            Some(raw) => Self::tracker_edit(handle.as_ref(), raw)?,
             None => None,
         };
 
